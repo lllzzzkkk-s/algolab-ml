@@ -1,0 +1,30 @@
+# 多项式特征：对 f0、f3 生成二次项与交互
+polynomial:
+  cols: ["f0", "f3"]
+  degree: 2
+
+# 交互项：手工指定对
+interactions:
+  pairs:
+    - ["f0", "f1"]
+    - ["f2", "f3"]
+
+# 分箱：对 f2 做分位数分箱，5 箱
+binning:
+  cols: ["f2"]
+  method: quantile
+  bins: 5
+
+# 日期展开：把 event_date 拆成年/月/周几
+datetime_parts:
+  event_date: ["year", "month", "dow"]
+
+# 频次编码：对 city 做频率编码
+frequency_encode:
+  cols: ["city"]
+  as_freq: true
+
+# 文本基础：对 comment 提取长度/字母数/数字数
+text_basic:
+  cols: ["comment"]
+  metrics: ["length", "num_alpha", "num_digit"]

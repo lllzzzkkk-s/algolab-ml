@@ -1,0 +1,271 @@
+{
+  "notebooks_scan": {
+    "1_赛题分析.ipynb": {
+      "title": "通用流程1 赛题分析",
+      "sections": [
+        "通用流程1 赛题分析",
+        "1. 赛题分析",
+        "预测指标",
+        "回归结果评价标准采用R-Square",
+        "数据概况",
+        "总体情况一览",
+        "分类特征和连续型特征",
+        "缺失值分析",
+        "单调特征列分析",
+        "特征nunique分布",
+        "统计特征值频次大于100的特征",
+        "Label分布",
+        "多变量分析"
+      ],
+      "imports": [
+        "lightgbm",
+        "matplotlib",
+        "numpy",
+        "pandas",
+        "seaborn",
+        "sklearn",
+        "warnings",
+        "xgboost"
+      ]
+    },
+    "2_数据清洗.ipynb": {
+      "title": "通用流程2 数据清洗",
+      "sections": [
+        "通用流程2 数据清洗",
+        "缺失值处理",
+        "异常值处理",
+        "深度清洗"
+      ],
+      "imports": [
+        "lightgbm",
+        "matplotlib",
+        "multiprocessing",
+        "numpy",
+        "pandas",
+        "pickle",
+        "seaborn",
+        "sklearn",
+        "warnings",
+        "xgboost"
+      ]
+    },
+    "3_特征工程.ipynb": {
+      "title": "通用流程3 特征工程&特征选择",
+      "sections": [
+        "通用流程3 特征工程&特征选择",
+        "特征工程",
+        "特征合并",
+        "计算统计特征",
+        "groupby方法生成统计特征",
+        "聚类方法",
+        "log平滑",
+        "特征选择",
+        "相关系数法",
+        "Wrapper",
+        "Embedded",
+        "基于惩罚项的特征选择法",
+        "Lasso(l1)和Ridge(l2)",
+        "基于树模型的特征选择法",
+        "随机森林 平均不纯度减少（mean decrease impurity"
+      ],
+      "imports": [
+        "pandas",
+        "sklearn",
+        "warnings"
+      ]
+    },
+    "4_模型选择.ipynb": {
+      "title": "通用流程4 模型选择",
+      "sections": [
+        "通用流程4 模型选择",
+        "以lightGBM为例"
+      ],
+      "imports": [
+        "__future__",
+        "colorama",
+        "hyperopt",
+        "lightgbm",
+        "numpy",
+        "sklearn"
+      ]
+    },
+    "5_模型融合.ipynb": {
+      "title": "通用流程5 模型融合",
+      "sections": [
+        "通用流程5 模型融合",
+        "pre1-pren分别是n组模型预测出来的结果，将其进行加权融合",
+        "blending",
+        "Stacking"
+      ],
+      "imports": [
+        "itertools",
+        "lightgbm",
+        "matplotlib",
+        "mlxtend",
+        "numpy",
+        "pandas",
+        "seaborn",
+        "sklearn",
+        "warnings"
+      ]
+    },
+    "6_时间序列特征构建.ipynb": {
+      "title": null,
+      "sections": [
+        "时间特征提取技巧",
+        "滞后特征构建",
+        "滚动统计特征",
+        "高级特征构建技巧"
+      ],
+      "imports": [
+        "numpy",
+        "pandas",
+        "sklearn",
+        "statsmodels"
+      ]
+    },
+    "7_Word2Vec 实战.ipynb": {
+      "title": null,
+      "sections": [
+        "文本预处理",
+        "Word2Vec模型训练",
+        "生产技巧与优化",
+        "增量训练技巧",
+        "特征应用实战"
+      ],
+      "imports": [
+        "gensim",
+        "jieba",
+        "matplotlib",
+        "numpy",
+        "pandas",
+        "re",
+        "seaborn",
+        "sklearn"
+      ]
+    },
+    "Numpy入门.ipynb": {
+      "title": null,
+      "sections": [
+        "基本概念",
+        "数组的创建",
+        "打印数组",
+        "基本操作",
+        "广播函数",
+        "索引、切片和迭代",
+        "数组形状操作",
+        "更改数组的形状",
+        "堆砌不同的数组",
+        "将一个数组划分为多个更小的数组",
+        "复制和视图",
+        "不复制",
+        "视图和浅复制",
+        "深复制",
+        "多种多样的索引和索引的小技巧",
+        "用数组访问数组",
+        "用布尔数组来访问数组",
+        "ix_()函数",
+        "线性代数",
+        "简单的数组操作",
+        "小技巧和小贴士",
+        "自动更改数组大小",
+        "直方图"
+      ],
+      "imports": [
+        "matplotlib",
+        "numpy"
+      ]
+    },
+    "Pandas入门.ipynb": {
+      "title": null,
+      "sections": [
+        "导入",
+        "创建对象",
+        "查看数据",
+        "数据选择",
+        "数据获取",
+        "根据标签选择",
+        "根据位置进行选择",
+        "布尔索引",
+        "设置数据",
+        "处理缺失数据",
+        "基础操作",
+        "基本的统计",
+        "应用函数",
+        "直方图",
+        "字符串函数",
+        "数据合并",
+        "数据拼接",
+        "数据关联",
+        "添加数据（Append）",
+        "分组",
+        "改变数据形状",
+        "压缩",
+        "数据透视表",
+        "时间序列",
+        "标签数据",
+        "绘图",
+        "数据获取与导出",
+        "CSV",
+        "HDF5",
+        "Excel"
+      ],
+      "imports": [
+        "matplotlib",
+        "numpy",
+        "pandas"
+      ]
+    },
+    "Sklearn入门.ipynb": {
+      "title": "Scikit-learn六大功能",
+      "sections": [
+        "Scikit-learn六大功能",
+        "分类",
+        "回归",
+        "聚类",
+        "数据降维",
+        "模型选择",
+        "数据预处理",
+        "简单案例"
+      ],
+      "imports": [
+        "sklearn"
+      ]
+    }
+  },
+  "proposed_mapping": {
+    "1_赛题分析.ipynb": [
+      "ml/data/io.py (detect_problem_type)",
+      "README.md (问题定义)"
+    ],
+    "2_数据清洗.ipynb": [
+      "ml/data/cleaning.py (basic_clean, fill_na)"
+    ],
+    "3_特征工程.ipynb": [
+      "ml/features/transform.py (build_tabular_preprocess)"
+    ],
+    "4_模型选择.ipynb": [
+      "ml/models/model_zoo.py",
+      "ml/models/selection.py",
+      "ml/models/train.py"
+    ],
+    "5_模型融合.ipynb": [
+      "ml/models/ensemble.py"
+    ],
+    "6_时间序列特征构建.ipynb": [
+      "ml/features/timeseries.py (add_date_parts, add_lag_roll)"
+    ],
+    "7_Word2Vec 实战.ipynb": [
+      "ml/features/nlp.py (train_word2vec)"
+    ],
+    "Numpy入门.ipynb": [
+      "(教程，建议保留在 notebooks/)"
+    ],
+    "Pandas入门.ipynb": [
+      "(教程，建议保留在 notebooks/)"
+    ],
+    "Sklearn入门.ipynb": [
+      "(教程，建议保留在 notebooks/)"
+    ]
+  }
+}

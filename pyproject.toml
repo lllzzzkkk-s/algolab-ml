@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "algolab-ml"
+version = "0.1.0"
+description = "Algolab ML modular package (data/cleaning/features/models/pipelines)"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{name = "Algolab"}]
+dependencies = []
+
+[tool.setuptools]
+package-dir = {"" = "."}
+packages = { find = { include = ["ml*"] } }
+
+[project.scripts]
+algolab-mlrun = "algolab_ml.cli.mlrun:main"
+algolab_mlrun = "algolab_ml.cli.mlrun:main"

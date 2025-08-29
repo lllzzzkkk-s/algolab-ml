@@ -1,0 +1,16 @@
+enforce_schema:
+  required: [label]
+basic_clean: true
+fill_na:
+  num: median
+  cat: most_frequent
+drop_constant:
+  threshold_unique: 1
+clip_outliers:
+  method: iqr
+  iqr_k: 1.5
+bucket_rare:
+  cols: []
+  min_freq: 10
+  other_label: _OTHER
+parse_dates: {}

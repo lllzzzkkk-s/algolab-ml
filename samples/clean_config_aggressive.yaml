@@ -1,0 +1,20 @@
+enforce_schema:
+  rename:
+    target: label
+  required: [label]
+basic_clean: true
+fill_na:
+  num: median
+  cat: most_frequent
+drop_constant:
+  threshold_unique: 1
+clip_outliers:
+  method: iqr
+  iqr_k: 1.0
+bucket_rare:
+  cols: ["city", "cat1", "brand"]
+  min_freq: 30
+  other_label: _OTHER
+parse_dates:
+  event_date: auto
+  when: auto

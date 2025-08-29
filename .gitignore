@@ -1,0 +1,30 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual env
+.venv*/
+.env*/
+
+# macOS
+.DS_Store
+
+# Build & packaging
+build/
+dist/
+*.egg-info/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+
+# Runs & logs
+runs/
+*.log
+
+# Sample data (可按需保留/忽略)
+samples/*.csv
