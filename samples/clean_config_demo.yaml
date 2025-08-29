@@ -18,3 +18,7 @@ bucket_rare:
 parse_dates:
   event_date: auto
   when: auto
+enforce_schema:
+  rename: {target: label}
+  required: [label]
+  dtypes: {label: int}
