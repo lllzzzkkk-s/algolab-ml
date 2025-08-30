@@ -1,115 +1,92 @@
 from __future__ import annotations
-from typing import Dict, Tuple, Optional, List
-import json
-import pandas as pd
+from typing import Dict, Tuple, Optional
 import numpy as np
+import pandas as pd
 
-from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV
 from sklearn.metrics import (
     accuracy_score, f1_score, roc_auc_score, classification_report,
-    mean_squared_error, r2_score
+    mean_squared_error, r2_score,
 )
 
 from .model_zoo import get_model
+from ..features.transform import build_tabular_preprocess
 
-# ========== 兼容：metrics & param_spaces 可用则用，否则这里内置 ==========
-try:
-    from ..utils.metrics import infer_task_from_target, classification_report_dict, regression_report_dict
-except Exception:
-    def infer_task_from_target(y: pd.Series) -> str:
-        y = pd.Series(y)
-        if pd.api.types.is_numeric_dtype(y):
-            # 连续型：唯一值多且非近似整数
-            nun = y.nunique(dropna=True)
-            if nun > max(20, 0.05 * len(y)):
-                # 判断是不是“近似整数且类别很少”的情况（这类更像分类）
-                y_round = np.round(y)
-                if np.allclose(y, y_round, atol=1e-6) and len(np.unique(y_round)) <= 10:
+from pathlib import Path
+import inspect
+
+# —— 简单任务自动识别
+def _infer_task(y: pd.Series) -> str:
+    nunq = y.nunique(dropna=True)
+    if pd.api.types.is_numeric_dtype(y):
+        if pd.api.types.is_float_dtype(y):
+            y_nonnull = y.dropna()
+            if len(y_nonnull) > 0:
+                as_int = (y_nonnull.round() == y_nonnull).mean()
+                if as_int > 0.98 and nunq <= max(20, int(len(y)*0.05)):
                     return "classification"
-                return "regression"
+        if nunq <= max(20, int(len(y)*0.01)):
+            return "classification"
+        return "regression"
+    else:
         return "classification"
 
-    def classification_report_dict(y_true, y_pred, y_prob=None):
-        out = {
-            "task": "classification",
-            "accuracy": float(accuracy_score(y_true, y_pred)),
-            "f1_macro": float(f1_score(y_true, y_pred, average="macro")),
-            "classification_report": json.loads(
-                classification_report(y_true, y_pred, output_dict=True).__repr__().replace("'", '"')
-            ) if False else classification_report(y_true, y_pred, output_dict=True)
-        }
-        # 二分类且有概率
-        try:
-            labels = np.unique(y_true)
-            if len(labels) == 2 and y_prob is not None:
-                # 取正类概率
-                if y_prob.ndim == 2 and y_prob.shape[1] >= 2:
-                    pos_idx = 1
-                    out["roc_auc"] = float(roc_auc_score(y_true, y_prob[:, pos_idx]))
-        except Exception:
-            pass
-        return out
+# —— 默认搜索空间（可选）
+_DEFAULT_PARAM_GRID = {
+    "lgbm": {
+        "model__n_estimators": [100, 200, 400],
+        "model__learning_rate": [0.05, 0.1],
+        "model__num_leaves": [31, 63, 127],
+        "model__subsample": [0.8, 1.0],
+        "model__colsample_bytree": [0.8, 1.0],
+    },
+    "xgb": {
+        "model__n_estimators": [200, 400],
+        "model__learning_rate": [0.05, 0.1],
+        "model__max_depth": [3, 5, 7],
+        "model__subsample": [0.8, 1.0],
+        "model__colsample_bytree": [0.8, 1.0],
+    },
+    "rf": {
+        "model__n_estimators": [200, 400],
+        "model__max_depth": [None, 10, 20],
+        "model__max_features": ["sqrt", "log2", None],
+    },
+}
 
-    def regression_report_dict(y_true, y_pred):
-        rmse = float(np.sqrt(mean_squared_error(y_true, y_pred)))
-        r2 = float(r2_score(y_true, y_pred))
-        return {"task": "regression", "rmse": rmse, "r2": r2}
+def build_pipeline(pre, model):
+    return Pipeline([("preprocess", pre), ("model", model)])
 
-try:
-    from .param_spaces import default_param_grid as _default_param_grid
-except Exception:
-    def _default_param_grid(model_name: str, task: str) -> Dict[str, List]:
-        # 轻量默认搜索空间（可根据需要扩展）
-        if model_name == "lgbm":
-            if task == "classification":
-                return {"n_estimators": [200, 400], "num_leaves": [31, 63], "learning_rate": [0.1, 0.05]}
-            else:
-                return {"n_estimators": [200, 400], "num_leaves": [31, 63], "learning_rate": [0.1, 0.05]}
-        if model_name == "xgb":
-            return {"n_estimators": [200, 400], "max_depth": [4, 6], "learning_rate": [0.1, 0.05]}
-        if model_name in ("rf",):
-            return {"n_estimators": [200, 500], "max_depth": [None, 10, 20]}
-        if model_name in ("gbdt", "gbr"):
-            return {"n_estimators": [200, 400], "learning_rate": [0.1, 0.05], "max_depth": [2, 3]}
-        if model_name in ("logreg", "ridge", "lasso"):
-            return {"C": [0.1, 1.0, 10.0]} if model_name == "logreg" else {"alpha": [0.1, 1.0, 10.0]}
-        return {}
-
-# ========== 预处理 ==========
-def _make_ohe():
-    """OneHotEncoder 兼容封装：优先用 sparse_output（sklearn>=1.4），否则退回 sparse。"""
+def _build_preprocessor(df_with_target: pd.DataFrame, target: str, enable: bool):
+    """
+    兼容不同版本的 build_tabular_preprocess 签名：
+    - (df, target=..., enable=...)
+    - (df, target_col=..., enable=...)
+    - (df, enable=...) / (df)  —— 此时自动剔除目标列，避免把 label 当作特征
+    """
+    from ..features.transform import build_tabular_preprocess  # 避免循环导入
     try:
-        # 新版参数名
-        return OneHotEncoder(handle_unknown="ignore", sparse_output=False)
-    except TypeError:
-        # 旧版参数名
-        return OneHotEncoder(handle_unknown="ignore", sparse=False)
+        sig = inspect.signature(build_tabular_preprocess)
+        params = sig.parameters
+        if "target" in params:
+            return build_tabular_preprocess(df_with_target, target=target, enable=enable)
+        if "target_col" in params:
+            return build_tabular_preprocess(df_with_target, target_col=target, enable=enable)
+        # 只有 (df, enable=...) 或 (df)：自动剔除目标列后再构建
+        base_df = df_with_target.drop(columns=[target], errors="ignore")
+        try:
+            return build_tabular_preprocess(base_df, enable=enable)
+        except TypeError:
+            return build_tabular_preprocess(base_df)
+    except Exception:
+        # 兜底：再尝试 target_col；若仍不行，则剔除目标列直接调用
+        try:
+            return build_tabular_preprocess(df_with_target, target_col=target, enable=enable)
+        except TypeError:
+            base_df = df_with_target.drop(columns=[target], errors="ignore")
+            return build_tabular_preprocess(base_df)
 
-def build_tabular_preprocess(df: pd.DataFrame, target: str, enable: bool = True):
-    if not enable:
-        return None
-    # 数值/类别列自动识别
-    feature_cols = [c for c in df.columns if c != target]
-    num_cols = df[feature_cols].select_dtypes(include=["number", "bool"]).columns.tolist()
-    cat_cols = [c for c in feature_cols if c not in num_cols]
-
-    num_pipe = Pipeline([("scaler", StandardScaler())])
-    ohe = _make_ohe()
-
-    pre = ColumnTransformer(
-        transformers=[
-            ("num", num_pipe, num_cols),
-            ("cat", ohe,      cat_cols),
-        ],
-        remainder="drop",
-        sparse_threshold=0.0,  # 强制 densify（遇到稀疏也转为 dense）
-    )
-    return pre
-
-# ========== 训练 ==========
 def fit_tabular(
     df: pd.DataFrame,
     target: str,
@@ -120,100 +97,169 @@ def fit_tabular(
     model_params: Dict | None = None,
     task_override: Optional[str] = None,
     cv: int = 0,
-    search: Optional[str] = None,          # 'grid' | 'random'
-    param_grid: Optional[str | Dict] = None,  # JSON str / @file / dict
+    search: str = "grid",
     n_iter: int = 20,
     scoring: Optional[str] = None,
-) -> Tuple[Pipeline, Dict]:
-    if target not in df.columns:
-        raise KeyError(f"目标列 '{target}' 不存在，当前列：{list(df.columns)[:20]} ...")
+    param_grid: Optional[str] = None,
+    early_stopping: bool = False,
+    val_size: float = 0.15,
+    es_rounds: int = 50,
+    eval_metric: Optional[str] = None,
+) -> Tuple[Pipeline, dict]:
 
-    # 1) 任务判断
+    model_params = model_params or {}
     y = df[target]
-    task = task_override or infer_task_from_target(y)
-
-    # 2) 划分
     X = df.drop(columns=[target])
-    Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=test_size, random_state=random_state, stratify=(y if task=="classification" else None))
 
-    # 3) 预处理 + 模型
-    pre = build_tabular_preprocess(pd.concat([Xtr, ytr], axis=1), target=target, enable=preprocess)
-    base_est = get_model(model_name, task=task, **(model_params or {}))
-    steps = []
-    if pre is not None:
-        steps.append(("preprocess", pre))
-    steps.append(("model", base_est))
-    pipe = Pipeline(steps)
+    task = task_override or _infer_task(y)
+    report: Dict = {"task": task}
 
-    # 4) 解析 param_grid
-    if isinstance(param_grid, str):
-        pg = param_grid.strip()
-        if pg.startswith("@"):
-            pg = json.loads(Path(pg[1:]).read_text(encoding="utf-8"))
+    # —— 划分训练/测试
+    Xtr, Xte, ytr, yte = train_test_split(
+        X, y, test_size=test_size, random_state=random_state, stratify=None if task == "regression" else y
+    )
+
+    # —— 预处理（构建时传入包含目标列的 df；内部函数会按需剔除）
+    pre = _build_preprocessor(pd.concat([Xtr, ytr], axis=1), target=target, enable=preprocess)
+
+    # —— 构建模型
+    model = get_model(model_name, task, **model_params)
+
+    # ============ CV 搜索（不与早停混用） ============
+    if isinstance(cv, int) and cv >= 2:
+        from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
+        pipe = build_pipeline(pre, model)
+        if param_grid and isinstance(param_grid, str) and param_grid.strip().startswith("@"):
+            import json
+            pg = json.loads(Path(param_grid[1:]).read_text(encoding="utf-8"))
+        elif param_grid and isinstance(param_grid, str):
+            import json
+            pg = json.loads(param_grid)
         else:
-            pg = json.loads(pg)
-    elif isinstance(param_grid, dict):
-        pg = param_grid
-    else:
-        pg = _default_param_grid(model_name, task)
-
-    # 将参数名加上 'model__' 前缀（用于 Pipeline）
-    if pg:
-        pg = {f"model__{k}": v for k, v in pg.items()}
-
-    # 5) 拟合（可选 CV）
-    estimator = pipe
-    cv_used = None
-    if isinstance(cv, int) and cv > 1 and pg:
-        cv_used = int(cv)
-        if (search or "grid") == "random":
-            estimator = RandomizedSearchCV(
-                pipe, param_distributions=pg, n_iter=int(n_iter),
-                cv=cv_used, scoring=scoring, n_jobs=1, refit=True, random_state=random_state, verbose=0
+            pg = _DEFAULT_PARAM_GRID.get(model_name, {})
+        if search == "random":
+            searcher = RandomizedSearchCV(
+                pipe, pg, n_iter=n_iter, scoring=scoring, cv=cv, n_jobs=None, refit=True, random_state=random_state
             )
         else:
-            estimator = GridSearchCV(
-                pipe, param_grid=pg,
-                cv=cv_used, scoring=scoring, n_jobs=1, refit=True, verbose=0
+            searcher = GridSearchCV(
+                pipe, pg, scoring=scoring, cv=cv, n_jobs=None, refit=True
             )
+        searcher.fit(Xtr, ytr)
+        best_pipe = searcher.best_estimator_
+        yhat = best_pipe.predict(Xte)
 
-    estimator.fit(Xtr, ytr)
-    best_est = estimator.best_estimator_ if hasattr(estimator, "best_estimator_") else estimator
+        if task == "classification":
+            yprob = None
+            try:
+                yproba = best_pipe.predict_proba(Xte)
+                yprob = yproba[:, 1] if (yproba.ndim == 2 and yproba.shape[1] >= 2) else yproba
+            except Exception:
+                pass
+            acc = float(accuracy_score(yte, yhat))
+            f1m = float(f1_score(yte, yhat, average="macro"))
+            report.update({"accuracy": acc, "f1_macro": f1m})
+            if yprob is not None and len(np.unique(yte)) == 2:
+                report["roc_auc"] = float(roc_auc_score(yte, yprob))
+            report["classification_report"] = classification_report(yte, yhat, output_dict=True)
+            report["_y_true"], report["_y_prob"] = yte.tolist(), (yprob.tolist() if yprob is not None else None)
+        else:
+            rmse = float(mean_squared_error(yte, yhat, squared=False))
+            r2 = float(r2_score(yte, yhat))
+            report.update({"rmse": rmse, "r2": r2})
 
-    # 6) 预测 & 评估
+        return best_pipe, {**report, "cv": True, "best_params": getattr(searcher, "best_params_", None),
+                           "best_score": getattr(searcher, "best_score_", None)}
+
+    # ============ 非 CV：支持早停 ============
+    if early_stopping and model_name in ("lgbm", "xgb"):
+        Xtr2, Xval, ytr2, yval = train_test_split(
+            Xtr, ytr, test_size=val_size, random_state=random_state, stratify=None if task == "regression" else ytr
+        )
+        # 只用 X 做预处理（不再拼接 y）
+        if preprocess:
+            Xtr2_t = pre.fit_transform(Xtr2, ytr2)
+            Xval_t = pre.transform(Xval)
+            Xte_t  = pre.transform(Xte)
+        else:
+            Xtr2_t, Xval_t, Xte_t = Xtr2.values, Xval.values, Xte.values
+
+        fit_kwargs = {}
+        if model_name == "lgbm":
+            import lightgbm as lgb
+            fit_kwargs["eval_set"] = [(Xval_t, yval)]
+            if eval_metric: fit_kwargs["eval_metric"] = eval_metric
+            fit_kwargs["callbacks"] = [lgb.early_stopping(es_rounds, verbose=False)]
+        elif model_name == "xgb":
+            fit_kwargs["eval_set"] = [(Xval_t, yval)]
+            if eval_metric: fit_kwargs["eval_metric"] = eval_metric
+            fit_kwargs["early_stopping_rounds"] = es_rounds
+            try:
+                if not hasattr(model, "get_xgb_params") or ("verbose" not in model.get_xgb_params()):
+                    fit_kwargs["verbose"] = False
+            except Exception:
+                fit_kwargs["verbose"] = False
+
+        clf = model
+        clf.fit(Xtr2_t, ytr2, **fit_kwargs)
+
+        yhat = clf.predict(Xte_t)
+        yprob = None
+        if task == "classification":
+            try:
+                proba = clf.predict_proba(Xte_t)
+                yprob = proba[:, 1] if (proba.ndim == 2 and proba.shape[1] >= 2) else proba
+            except Exception:
+                pass
+
+        if task == "classification":
+            acc = float(accuracy_score(yte, yhat))
+            f1m = float(f1_score(yte, yhat, average="macro"))
+            report.update({"accuracy": acc, "f1_macro": f1m})
+            if yprob is not None and len(np.unique(yte)) == 2:
+                report["roc_auc"] = float(roc_auc_score(yte, yprob))
+            report["classification_report"] = classification_report(yte, yhat, output_dict=True)
+            report["_y_true"], report["_y_prob"] = yte.tolist(), (yprob.tolist() if yprob is not None else None)
+        else:
+            rmse = float(mean_squared_error(yte, yhat, squared=False))
+            r2 = float(r2_score(yte, yhat))
+            report.update({"rmse": rmse, "r2": r2})
+
+        if hasattr(clf, "best_iteration_"):
+            report["best_iteration"] = int(clf.best_iteration_)
+        ev = None
+        if hasattr(clf, "evals_result_"):
+            ev = clf.evals_result_
+        elif hasattr(clf, "evals_result"):
+            try: ev = clf.evals_result()
+            except Exception: ev = None
+        if ev: report["evals_result"] = ev
+
+        pipe = build_pipeline(pre, clf)
+        return pipe, report
+
+    # ============ 普通训练（无早停） ============
+    pipe = build_pipeline(pre, model)
+    pipe.fit(Xtr, ytr)
+
+    yhat = pipe.predict(Xte)
     if task == "classification":
-        y_pred = best_est.predict(Xte)
-        y_prob = None
+        yprob = None
         try:
-            proba = best_est.predict_proba(Xte)
-            if proba.ndim == 2:
-                y_prob = proba
+            proba = pipe.predict_proba(Xte)
+            yprob = proba[:, 1] if (proba.ndim == 2 and proba.shape[1] >= 2) else proba
         except Exception:
             pass
-        report = classification_report_dict(yte, y_pred, y_prob=y_prob)
-        # 给导出阶段画图用的隐藏字段（只保留简短切片）
-        try:
-            report["_y_true"] = np.asarray(yte).tolist()
-            if y_prob is not None:
-                report["_y_prob"] = np.asarray(y_prob).tolist()
-        except Exception:
-            pass
+        acc = float(accuracy_score(yte, yhat))
+        f1m = float(f1_score(yte, yhat, average="macro"))
+        report.update({"accuracy": acc, "f1_macro": f1m})
+        if yprob is not None and len(np.unique(yte)) == 2:
+            report["roc_auc"] = float(roc_auc_score(yte, yprob))
+        report["classification_report"] = classification_report(yte, yhat, output_dict=True)
+        report["_y_true"], report["_y_prob"] = yte.tolist(), (yprob.tolist() if yprob is not None else None)
     else:
-        y_pred = best_est.predict(Xte)
-        report = regression_report_dict(yte, y_pred)
+        rmse = float(mean_squared_error(yte, yhat, squared=False))
+        r2 = float(r2_score(yte, yhat))
+        report.update({"rmse": rmse, "r2": r2})
 
-    # 7) 搜索信息
-    if hasattr(estimator, "best_params_"):
-        report["search"] = {
-            "best_params": estimator.best_params_,
-            "scoring": scoring,
-            "cv": cv_used,
-            "search": search or "grid",
-        }
-        # 结果表
-        try:
-            report["_cv_results"] = estimator.cv_results_
-        except Exception:
-            pass
-
-    return estimator, report
+    return pipe, report

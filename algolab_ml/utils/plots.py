@@ -2,68 +2,121 @@ from __future__ import annotations
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.metrics import RocCurveDisplay, PrecisionRecallDisplay
 
-from sklearn.metrics import roc_curve, auc, precision_recall_curve, average_precision_score
-import pandas as pd
-
-def _ensure_dir(d: Path):
-    d.mkdir(parents=True, exist_ok=True)
+def _savefig(path: Path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    plt.tight_layout()
+    plt.savefig(path, dpi=180)
+    plt.close()
 
 def plot_roc_pr_curves(y_true, y_prob, out_dir: Path):
-    out_dir = Path(out_dir); _ensure_dir(out_dir)
-    y_true = np.asarray(y_true)
-    y_prob = np.asarray(y_prob)
-    if y_prob.ndim == 1:
-        prob_pos = y_prob
-    else:
-        prob_pos = y_prob[:, 1]  # 正类
-    # ROC
-    fpr, tpr, _ = roc_curve(y_true, prob_pos)
-    roc_auc = auc(fpr, tpr)
-    plt.figure()
-    plt.plot(fpr, tpr, lw=2, label=f"ROC curve (AUC = {roc_auc:.3f})")
-    plt.plot([0,1], [0,1], lw=1, linestyle="--")
-    plt.xlabel("False Positive Rate"); plt.ylabel("True Positive Rate")
-    plt.title("ROC Curve"); plt.legend(loc="lower right")
-    plt.tight_layout()
-    plt.savefig(out_dir / "roc_curve.png", dpi=160)
-    plt.close()
-    # PR
-    precision, recall, _ = precision_recall_curve(y_true, prob_pos)
-    ap = average_precision_score(y_true, prob_pos)
-    plt.figure()
-    plt.plot(recall, precision, lw=2, label=f"AP = {ap:.3f}")
-    plt.xlabel("Recall"); plt.ylabel("Precision")
-    plt.title("Precision-Recall Curve"); plt.legend(loc="lower left")
-    plt.tight_layout()
-    plt.savefig(out_dir / "pr_curve.png", dpi=160)
-    plt.close()
+    try:
+        y_true = np.asarray(y_true)
+        y_prob = np.asarray(y_prob)
+        if y_prob.ndim > 1 and y_prob.shape[1] >= 2:
+            y_prob = y_prob[:, 1]
+        # ROC
+        RocCurveDisplay.from_predictions(y_true, y_prob)
+        _savefig(Path(out_dir) / "plots" / "roc_curve.png")
+        # PR
+        PrecisionRecallDisplay.from_predictions(y_true, y_prob)
+        _savefig(Path(out_dir) / "plots" / "pr_curve.png")
+        print("✅ 已保存 ROC/PR 曲线")
+    except Exception:
+        pass
 
-def plot_feature_importance(estimator, feature_names, out_dir: Path, top_n: int = 30):
-    out_dir = Path(out_dir); _ensure_dir(out_dir)
-    # 拿到最终模型
-    model = getattr(estimator, "best_estimator_", estimator)
-    if hasattr(model, "named_steps"):  # Pipeline
-        model = model.named_steps.get("model", model)
-    imp = getattr(model, "feature_importances_", None)
-    if imp is None:
+def plot_feature_importance(pipeline, feature_names, out_dir: Path, top_n: int = 30):
+    # 获取末端模型
+    try:
+        model = pipeline.named_steps.get("model", None)
+    except Exception:
+        model = None
+    if model is None:
         return
-    imp = np.asarray(imp)
+    # 支持 feature_importances_
+    if not hasattr(model, "feature_importances_"):
+        return
+    importances = np.asarray(model.feature_importances_)
     if feature_names is None:
-        feature_names = [f"f{i}" for i in range(len(imp))]
-    order = np.argsort(-imp)[:top_n]
-    plt.figure(figsize=(8, max(4, int(0.35 * len(order)))))
-    plt.barh(range(len(order)), imp[order])
-    plt.yticks(range(len(order)), [str(feature_names[i]) for i in order])
+        feature_names = [f"f{i}" for i in range(len(importances))]
+    # 取前 top_n
+    idx = np.argsort(importances)[::-1][:top_n]
+    names = [feature_names[i] if i < len(feature_names) else f"f{i}" for i in idx]
+    vals = importances[idx]
+    plt.figure(figsize=(8, max(4, top_n*0.25)))
+    y = np.arange(len(idx))
+    plt.barh(y, vals)
+    plt.yticks(y, names)
     plt.gca().invert_yaxis()
-    plt.title("Feature Importance (top %d)" % len(order))
-    plt.tight_layout()
-    plt.savefig(out_dir / "feature_importance.png", dpi=160)
-    plt.close()
+    plt.xlabel("importance")
+    plt.title("Top Feature Importances")
+    _savefig(Path(out_dir) / "plots" / "feature_importance.png")
+    print("✅ 已保存特征重要性")
 
 def save_cv_results(estimator, out_dir: Path):
-    out_dir = Path(out_dir); _ensure_dir(out_dir)
-    est = getattr(estimator, "best_estimator_", estimator)
-    if hasattr(estimator, "cv_results_"):
-        df = pd.DataFrame(estimator.cv_results_)
-        df.to_csv(out_dir / "cv_results.csv", index=False)
+    # 对 GridSearchCV/RandomizedSearchCV 的 best_estimator_ 才有 cv_results_
+    try:
+        cv_results_ = getattr(estimator, "cv_results_", None)
+        if cv_results_:
+            import pandas as pd
+            df = pd.DataFrame(cv_results_)
+            p = Path(out_dir) / "cv" / "cv_results.csv"
+            p.parent.mkdir(parents=True, exist_ok=True)
+            df.to_csv(p, index=False)
+            print(f"✅ 已保存 CV 结果：{p.resolve()}")
+    except Exception:
+        pass
+
+def plot_learning_curve(evals_result: dict, out_dir: Path, metric_hint: str | None = None, task: str | None = None):
+    """
+    ev for LightGBM: {'training': {'auc':[...], ...}, 'valid_0': {'auc':[...], ...}}
+    ev for XGBoost : {'validation_0': {'auc':[...], ...}, 'validation_1': {...}}
+    """
+    try:
+        # 选 metric
+        # 优先 eval_metric；否则按任务默认
+        metric = (metric_hint or ("auc" if task == "classification" else "rmse")).lower()
+        # 取两个系列（train / valid）
+        # LightGBM 风格
+        train_key = next((k for k in evals_result.keys() if "train" in k or "training" in k), None)
+        valid_key = next((k for k in evals_result.keys() if "valid" in k), None)
+        # XGBoost 风格
+        if train_key is None:
+            train_key = next((k for k in evals_result.keys() if "validation_1" in k), None)  # 有时 val1 作为 train 接近线
+        if valid_key is None:
+            valid_key = next((k for k in evals_result.keys() if "validation_0" in k or "valid_0" in k), None)
+        if valid_key is None and len(evals_result) == 1:
+            valid_key = list(evals_result.keys())[0]
+
+        if valid_key is None:
+            return
+
+        # 取曲线
+        v = evals_result[valid_key]
+        if metric not in v:
+            # 尝试找到一个最像的 metric
+            if len(v) > 0:
+                metric = list(v.keys())[0]
+        series = {}
+        if train_key and metric in evals_result.get(train_key, {}):
+            series["train"] = evals_result[train_key][metric]
+        if metric in evals_result[valid_key]:
+            series["valid"] = evals_result[valid_key][metric]
+
+        if not series:
+            return
+
+        # 画图
+        import matplotlib.pyplot as plt
+        plt.figure(figsize=(7, 4))
+        for name, arr in series.items():
+            plt.plot(arr, label=name)
+        plt.xlabel("iteration")
+        plt.ylabel(metric)
+        plt.title(f"Learning Curve ({metric})")
+        plt.legend()
+        _savefig(Path(out_dir) / "plots" / "learning_curve.png")
+        print("✅ 已保存学习曲线")
+    except Exception:
+        pass
