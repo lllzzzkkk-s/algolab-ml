@@ -1,45 +1,62 @@
 from __future__ import annotations
-from typing import Dict, Tuple
+from typing import Dict, Any
 import numpy as np
+import pandas as pd
 from sklearn.metrics import (
-    accuracy_score, f1_score, roc_auc_score,
-    mean_squared_error, r2_score, precision_recall_curve, auc
+    accuracy_score, f1_score, roc_auc_score, classification_report,
+    mean_squared_error, r2_score
 )
 
-def infer_task_from_target(y) -> str:
-    y_arr = np.asarray(y)
-    n_unique = len(np.unique(y_arr))
-    # float 近似整数 + 少类别 => 也视为分类
-    if np.issubdtype(y_arr.dtype, np.floating):
-        if np.allclose(y_arr, np.round(y_arr)) and n_unique <= 20:
-            return "classification"
-    if n_unique <= 20:
-        return "classification"
-    return "regression"
+def infer_task_from_target(y: pd.Series) -> str:
+    """
+    规则（通俗版）：
+    - 数值且唯一值很多 -> 回归，但若“几乎都是整数且种类很少(≤10)”则更像分类
+    - 其他 -> 分类
+    """
+    y = pd.Series(y)
+    if pd.api.types.is_numeric_dtype(y):
+        nun = y.nunique(dropna=True)
+        if nun > max(20, 0.05 * len(y)):
+            y_round = np.round(y)
+            if np.allclose(y, y_round, atol=1e-6) and len(np.unique(y_round)) <= 10:
+                return "classification"
+            return "regression"
+    return "classification"
 
-def classification_report_dict(y_true, y_pred, y_proba=None) -> Dict:
-    out = {
+def _to_py(obj):
+    # 把 numpy 类型递归转为内置 python 类型，便于 JSON 序列化
+    if isinstance(obj, dict):
+        return {k: _to_py(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [ _to_py(v) for v in obj ]
+    if hasattr(obj, "item"):
+        try:
+            return obj.item()
+        except Exception:
+            pass
+    return obj
+
+def classification_report_dict(y_true, y_pred, y_prob=None) -> Dict[str, Any]:
+    out: Dict[str, Any] = {
         "task": "classification",
         "accuracy": float(accuracy_score(y_true, y_pred)),
         "f1_macro": float(f1_score(y_true, y_pred, average="macro")),
+        "classification_report": _to_py(classification_report(y_true, y_pred, output_dict=True)),
     }
     try:
-        if y_proba is not None:
-            if y_proba.ndim == 1:  # 二分类概率(正类)
-                out["roc_auc"] = float(roc_auc_score(y_true, y_proba))
-            else:  # 多分类概率矩阵
-                out["roc_auc"] = float(roc_auc_score(y_true, y_proba, multi_class="ovr", average="macro"))
+        labels = np.unique(y_true)
+        if len(labels) == 2 and y_prob is not None:
+            # 概率矩阵 -> 取正类概率列
+            if y_prob.ndim == 2 and y_prob.shape[1] >= 2:
+                prob_pos = y_prob[:, 1]
+            else:
+                prob_pos = y_prob
+            out["roc_auc"] = float(roc_auc_score(y_true, prob_pos))
     except Exception:
         pass
     return out
 
-def regression_report_dict(y_true, y_pred) -> Dict:
-    return {
-        "task": "regression",
-        "rmse": float(mean_squared_error(y_true, y_pred, squared=False)),
-        "r2": float(r2_score(y_true, y_pred)),
-    }
-
-def pr_curve_auc(y_true, y_score) -> Tuple[np.ndarray, np.ndarray, float]:
-    p, r, _ = precision_recall_curve(y_true, y_score)
-    return p, r, float(auc(r, p))
+def regression_report_dict(y_true, y_pred) -> Dict[str, Any]:
+    rmse = float(np.sqrt(mean_squared_error(y_true, y_pred)))
+    r2 = float(r2_score(y_true, y_pred))
+    return {"task": "regression", "rmse": rmse, "r2": r2}
