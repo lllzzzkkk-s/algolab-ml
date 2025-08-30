@@ -1,153 +1,176 @@
-# algolab_ml/models/model_zoo.py
 from __future__ import annotations
 import inspect
-from typing import Dict, Type
+from typing import Dict, List
 
-# 这些是 sklearn 自带的，直接安全导入
+# sklearn 基础模型
 from sklearn.linear_model import LogisticRegression, Ridge, Lasso
 from sklearn.ensemble import (
     RandomForestClassifier, RandomForestRegressor,
-    GradientBoostingClassifier, GradientBoostingRegressor
+    GradientBoostingClassifier, GradientBoostingRegressor,
 )
 
-# 不要在模块顶层导入 xgboost / lightgbm / catboost（避免强依赖）
-# 改为在实际使用时再导入，并给出缺库的友好提示
+# LightGBM
+try:
+    from lightgbm import LGBMClassifier, LGBMRegressor
+    _HAS_LGBM = True
+except Exception:
+    _HAS_LGBM = False
 
-# ---- 常见别名 → 规范名 ----
-_CANON: Dict[str, str] = {
-    # boosting
-    "xgboost": "xgb", "xgb": "xgb",
-    "lightgbm": "lgbm", "lgb": "lgbm", "lgbm": "lgbm",
-    "cat": "catboost", "cb": "catboost", "catboost": "catboost",
-    # forest
-    "randomforest": "rf", "rf": "rf",
-    # gbdt（分类用 gbdt，回归用 gbr）
-    "gbm": "gbdt", "gboost": "gbdt", "gradientboosting": "gbdt", "gbdt": "gbdt",
-    # linear / logistic
-    "logistic": "logreg", "logreg": "logreg",
-    "ridge": "ridge", "lasso": "lasso",
-}
+# XGBoost
+try:
+    from xgboost import XGBClassifier, XGBRegressor
+    _HAS_XGB = True
+except Exception:
+    _HAS_XGB = False
 
-# ---- sklearn 部分直接映射 ----
-_SK_CLASSIFIERS: Dict[str, Type] = {
-    "logreg": LogisticRegression,
-    "rf": RandomForestClassifier,
-    "gbdt": GradientBoostingClassifier,
-}
-_SK_REGRESSORS: Dict[str, Type] = {
-    "ridge": Ridge,
-    "lasso": Lasso,
-    "rf": RandomForestRegressor,
-    "gbr": GradientBoostingRegressor,
-}
-
-# 其余三类为可选依赖：xgb / lgbm / catboost
-_OPTIONAL_MODELS = {"xgb", "lgbm", "catboost"}
+# CatBoost
+try:
+    from catboost import CatBoostClassifier, CatBoostRegressor
+    _HAS_CAT = True
+except Exception:
+    _HAS_CAT = False
 
 
-def _canon(name: str) -> str:
-    return _CANON.get(name.lower(), name.lower())
+# —— 列出可用模型（按任务）
+def available_models(task: str) -> List[str]:
+    if task not in ("classification", "regression"):
+        raise KeyError(f"unknown task: {task}")
+    base_cls = ["logreg", "rf", "gbdt"]
+    base_reg = ["ridge", "lasso", "rf", "gbdt"]
+    out = (base_cls if task == "classification" else base_reg)
+    if _HAS_LGBM: out += ["lgbm"]
+    if _HAS_XGB:  out += ["xgb"]
+    if _HAS_CAT:  out += ["catboost"]
+    return sorted(out)
 
 
-def available_models(task: str) -> list[str]:
-    task = task.lower()
-    if task == "classification":
-        base = set(_SK_CLASSIFIERS.keys())
-    else:
-        base = set(_SK_REGRESSORS.keys())
-    # 列表中包含可选模型名称（即便未安装也显示出来）
-    return sorted(base | _OPTIONAL_MODELS)
-
-
+# —— 别名（任务相关）
 def aliases_for_task(task: str) -> Dict[str, str]:
-    """仅返回对应 task 可用的别名映射（alias -> canonical）。"""
-    valid = set(available_models(task))
-    return {a: c for a, c in _CANON.items() if c in valid}
-
-
-# ---- 可选依赖的按需导入 ----
-def _import_xgb(task: str):
-    try:
-        from xgboost import XGBClassifier, XGBRegressor
-    except Exception as e:
-        raise RuntimeError(
-            "需要使用 XGBoost，请先安装：\n"
-            "  pip install xgboost\n"
-            "或 conda：\n"
-            "  conda install -c conda-forge xgboost"
-        ) from e
-    return XGBClassifier if task == "classification" else XGBRegressor
-
-
-def _import_lgbm(task: str):
-    try:
-        from lightgbm import LGBMClassifier, LGBMRegressor
-    except Exception as e:
-        raise RuntimeError(
-            "需要使用 LightGBM，请先安装：\n"
-            "  pip install lightgbm\n"
-            "或 conda：\n"
-            "  conda install -c conda-forge lightgbm"
-        ) from e
-    return LGBMClassifier if task == "classification" else LGBMRegressor
-
-
-def _import_catboost(task: str):
-    try:
-        from catboost import CatBoostClassifier, CatBoostRegressor
-    except Exception as e:
-        raise RuntimeError(
-            "需要使用 CatBoost，请先安装：\n"
-            "  pip install 'catboost==1.2.8'\n"
-            "或 conda：\n"
-            "  conda install -c conda-forge catboost=1.2.8"
-        ) from e
-    return CatBoostClassifier if task == "classification" else CatBoostRegressor
-
-
-def model_class(name: str, task: str):
-    """
-    返回对应模型类；对可选依赖（xgb/lgbm/catboost）在此处按需导入。
-    """
-    task = task.lower()
-    cname = _canon(name)
-    valid = set(available_models(task))
-    if cname not in valid:
-        raise KeyError(
-            f"Unknown model alias '{name}'. "
-            f"Try one of: {sorted(valid)} "
-            f"(aliases accepted: {sorted(set(aliases_for_task(task).keys()))})"
-        )
-
+    # 公共别名
+    common = {
+        "lgb": "lgbm", "lightgbm": "lgbm",
+        "xg": "xgb",   "xgboost":  "xgb",
+        "cat": "catboost", "cb": "catboost",
+        "random_forest": "rf",
+        "gb": "gbdt", "gradient_boosting": "gbdt",
+    }
     if task == "classification":
-        if cname in _SK_CLASSIFIERS:
-            return _SK_CLASSIFIERS[cname]
+        task_only = {"logistic": "logreg", "lr": "logreg"}
+    elif task == "regression":
+        task_only = {}
     else:
-        if cname in _SK_REGRESSORS:
-            return _SK_REGRESSORS[cname]
-
-    # 可选依赖按需导入
-    if cname == "xgb":
-        return _import_xgb(task)
-    if cname == "lgbm":
-        return _import_lgbm(task)
-    if cname == "catboost":
-        return _import_catboost(task)
-
-    # 理论到不了这里
-    raise KeyError(f"Model '{cname}' not implemented for task '{task}'")
+        task_only = {}
+    out = dict(common)
+    out.update(task_only)
+    return out
 
 
-def model_signature(name: str, task: str) -> str:
-    cls = model_class(name, task)
+# —— 归一化模型名：别名 → 规范名
+def _normalize_name(name: str, task: str) -> str:
+    name = (name or "").lower().strip()
+    alias = aliases_for_task(task)
+    if name in alias:
+        return alias[name]
+    return name
+
+
+# —— 返回构造参数签名（给 --show-params 用）
+def model_signature(name: str, task: str):
+    cls_map = _class_map(task)
+    norm = _normalize_name(name, task)
+    if norm not in cls_map:
+        raise KeyError(f"Unknown model '{name}' for task '{task}'")
+    cls = cls_map[norm]
     sig = inspect.signature(cls.__init__)
-    return f"{cls.__name__}{sig}"
+    # 去掉 self
+    params = [p.name for p in sig.parameters.values() if p.name != "self"]
+    return {
+        "class": f"{cls.__module__}.{cls.__name__}",
+        "init_params": params
+    }
 
 
-def get_model(name: str, task: str = "classification", **kwargs):
-    cname = _canon(name)
-    cls = model_class(cname, task)
-    # CatBoost 默认更安静一些
-    if cname == "catboost" and "verbose" not in kwargs:
-        kwargs["verbose"] = False
-    return cls(**kwargs)
+# —— 每个任务下的类映射（不含别名）
+def _class_map(task: str) -> Dict[str, type]:
+    if task == "classification":
+        m = {
+            "logreg": LogisticRegression,
+            "rf": RandomForestClassifier,
+            "gbdt": GradientBoostingClassifier,
+        }
+        if _HAS_LGBM: m["lgbm"] = LGBMClassifier
+        if _HAS_XGB:  m["xgb"]  = XGBClassifier
+        if _HAS_CAT:  m["catboost"] = CatBoostClassifier
+        return m
+    elif task == "regression":
+        m = {
+            "ridge": Ridge,
+            "lasso": Lasso,
+            "rf": RandomForestRegressor,
+            "gbdt": GradientBoostingRegressor,
+        }
+        if _HAS_LGBM: m["lgbm"] = LGBMRegressor
+        if _HAS_XGB:  m["xgb"]  = XGBRegressor
+        if _HAS_CAT:  m["catboost"] = CatBoostRegressor
+        return m
+    else:
+        raise KeyError(f"unknown task: {task}")
+
+
+# —— 构造模型实例
+def get_model(name: str, task: str, **params):
+    norm = _normalize_name(name, task)
+    cls_map = _class_map(task)
+    if norm not in cls_map:
+        avail = available_models(task)
+        raise KeyError(f"Unknown model alias '{name}' for task '{task}'. Available: {avail}")
+
+    # 给不同模型一个合理的默认值（可被 **params 覆盖）
+    defaults: Dict[str, object] = {}
+    if norm == "logreg":
+        defaults = {"max_iter": 1000, "n_jobs": None, "solver": "lbfgs"}
+    elif norm in ("ridge", "lasso"):
+        defaults = {}
+    elif norm == "rf":
+        # 分类/回归内核不同，但超参相同；交给 sklearn 处理
+        defaults = {"n_estimators": 300, "n_jobs": None, "random_state": 42}
+    elif norm == "gbdt":
+        defaults = {"random_state": 42}
+    elif norm == "lgbm":
+        if not _HAS_LGBM:
+            raise ImportError("lightgbm 未安装，请 `pip install lightgbm`")
+        defaults = {"n_estimators": 300, "learning_rate": 0.05, "n_jobs": None}
+    elif norm == "xgb":
+        if not _HAS_XGB:
+            raise ImportError("xgboost 未安装，请 `pip install xgboost`")
+        # 使用较稳妥的默认
+        defaults = {
+            "n_estimators": 300,
+            "learning_rate": 0.05,
+            "max_depth": 6,
+            "subsample": 1.0,
+            "colsample_bytree": 1.0,
+            "n_jobs": None,
+            "random_state": 42,
+            "tree_method": "hist",  # 更快更稳
+        }
+        # 二分类默认使用概率
+        if task == "classification":
+            defaults.setdefault("use_label_encoder", False)
+            defaults.setdefault("eval_metric", "logloss")
+    elif norm == "catboost":
+        if not _HAS_CAT:
+            raise ImportError("catboost 未安装，请 `pip install catboost`")
+        # 关闭多余输出 & 不写入本地目录
+        defaults = {
+            "iterations": 300,
+            "learning_rate": 0.05,
+            "depth": 6,
+            "random_state": 42,
+            "verbose": False,
+            "allow_writing_files": False,
+        }
+
+    cls = cls_map[norm]
+    final = {**defaults, **params}
+    return cls(**final)

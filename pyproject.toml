@@ -8,26 +8,23 @@ version = "0.1.0"
 description = "Algolab ML modular package (data/cleaning/features/models/pipelines)"
 readme = "README.md"
 requires-python = ">=3.9"
-authors = [{ name = "Algolab" }]
-# 运行依赖（版本尽量宽；你本地锁版本由 requirements-ml-locked.txt 控）
+authors = [{name = "Algolab"}]
 dependencies = [
+  "numpy>=1.23,<3.0",
   "pandas>=1.5",
-  "numpy>=1.23",
-  "scikit-learn>=1.2",
-  "lightgbm>=3.3",
+  "scikit-learn>=1.4",
+  "lightgbm>=4.0",
   "xgboost>=1.7",
-  "joblib>=1.2",
-  "PyYAML>=6.0"
+  "catboost>=1.2",
+  "pyyaml>=6.0",
+  "matplotlib>=3.7",
+  "joblib>=1.3"
 ]
 
-[project.optional-dependencies]
-catboost = ["catboost>=1.1"]
-plots = ["matplotlib>=3.6"]
+[tool.setuptools]
+package-dir = {"" = "."}
+packages = { find = { include = ["algolab_ml*"] } }
 
 [project.scripts]
 algolab-mlrun = "algolab_ml.cli.mlrun:main"
 algolab_mlrun = "algolab_ml.cli.mlrun:main"
-
-# 用新的包发现方式，匹配我们实际的包名
-[tool.setuptools.packages.find]
-include = ["algolab_ml*"]

@@ -1,0 +1,18 @@
+polynomial:
+  degree: 2
+  cols: ["tenure_months","last_login_days"]
+interactions:
+  pairs:
+    - ["tenure_months","monthly_fee"]
+    - ["clicks_30d","support_tickets"]
+binning:
+  method: quantile
+  bins: 5
+  cols: ["monthly_fee"]
+date_expand:
+  join_date: ["year","month"]
+freq_encoding:
+  cols: ["city","plan"]
+text_features:
+  cols: ["comment"]
+  metrics: ["length","num_alpha","num_digit"]

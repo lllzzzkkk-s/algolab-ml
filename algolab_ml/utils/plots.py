@@ -120,3 +120,45 @@ def plot_learning_curve(evals_result: dict, out_dir: Path, metric_hint: str | No
         print("✅ 已保存学习曲线")
     except Exception:
         pass
+
+def plot_confusion_matrices(y_true, y_prob, out_dir, thresholds: dict | None = None):
+    """保存默认0.5与最佳F1阈值下的混淆矩阵图（仅二分类）"""
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from sklearn.metrics import ConfusionMatrixDisplay
+
+    y_true = np.asarray(y_true)
+    y_prob = np.asarray(y_prob)
+    if y_prob.ndim != 1:
+        return  # 多分类概率不绘制
+
+    pairs = [("cm_default_0.5.png", 0.5)]
+    if isinstance(thresholds, dict) and "best_f1" in thresholds:
+        pairs.append(("cm_best_f1.png", float(thresholds["best_f1"]["threshold"])))
+
+    for fname, thr in pairs:
+        y_pred = (y_prob >= thr).astype(int)
+        fig, ax = plt.subplots(figsize=(4.5, 4))
+        ConfusionMatrixDisplay.from_predictions(y_true, y_pred, ax=ax, values_format="d")
+        ax.set_title(f"Confusion Matrix @ threshold={thr:.3f}")
+        fig.tight_layout()
+        fig.savefig(str(Path(out_dir) / fname), dpi=150)
+        plt.close(fig)
+
+def plot_calibration_curve(y_true, y_prob, out_dir, n_bins: int = 10):
+    """概率校准曲线（仅二分类）"""
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from sklearn.calibration import CalibrationDisplay
+
+    y_true = np.asarray(y_true)
+    y_prob = np.asarray(y_prob)
+    if y_prob.ndim != 1:
+        return
+
+    fig, ax = plt.subplots(figsize=(4.5, 4))
+    CalibrationDisplay.from_predictions(y_true, y_prob, n_bins=n_bins, ax=ax)
+    ax.set_title("Calibration Curve")
+    fig.tight_layout()
+    fig.savefig(str(Path(out_dir) / "calibration_curve.png"), dpi=150)
+    plt.close(fig)

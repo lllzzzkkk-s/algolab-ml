@@ -1,0 +1,501 @@
+id,city,plan,join_date,tenure_months,monthly_fee,last_login_days,clicks_30d,support_tickets,coupon_used,comment,label
+100000,Nanjing,pro,2021-06-07,16,75.88,77.0,31,0,1,slow loading,0
+100001,Beijing,basic,2021-09-18,28,41.33,57.0,33,1,0,slow loading,0
+100002,Beijing,basic,2021-02-02,16,42.67,80.0,14,0,0,bad network,0
+100003,Hangzhou,vip,2020-08-29,32,127.46,33.0,27,0,0,bad network,1
+100004,Beijing,pro,2021-08-30,4,75.49,28.0,12,2,0,bad network,0
+100005,Wuhan,pro,2021-04-22,10,74.63,70.0,14,1,0,helpful staff,0
+100006,Shanghai,pro,2020-07-20,4,80.76,50.0,29,0,0,helpful staff,1
+100007,Nanjing,basic,2020-08-22,33,40.49,26.0,28,2,0,bad network,1
+100008,Shenzhen,pro,2020-05-01,26,80.46,14.0,20,0,0,helpful staff,0
+100009,Nanjing,basic,2020-07-09,12,34.66,10.0,8,2,1,no issues,1
+100010,Changsha,basic,2020-01-15,5,37.98,41.0,0,1,0,slow loading,1
+100011,Shenzhen,pro,2021-04-27,4,83.81,,7,1,0,bad network,1
+100012,Hangzhou,basic,2020-12-06,35,36.22,52.0,3,1,1,slow loading,1
+100013,Hangzhou,basic,2021-09-12,6,40.24,51.0,0,0,0,helpful staff,0
+100014,Wuhan,vip,2021-11-16,11,128.52,,0,1,0,slow loading,0
+100015,Shanghai,basic,2021-03-29,5,36.1,,45,2,1,app crash,0
+100016,Nanjing,basic,2020-09-01,11,37.64,39.0,4,4,0,no issues,1
+100017,Shanghai,pro,2021-06-29,1,79.55,84.0,3,0,1,bad network,0
+100018,Shanghai,basic,2020-07-22,35,36.32,69.0,15,1,0,bad network,1
+100019,Xiamen,pro,2020-02-29,27,76.47,52.0,9,3,0,helpful staff,1
+100020,Chengdu,pro,2021-09-05,19,83.01,25.0,11,0,0,great service,0
+100021,Beijing,vip,2021-04-29,7,134.63,83.0,16,0,1,,0
+100022,Changsha,basic,2020-07-19,27,38.51,54.0,13,1,0,helpful staff,1
+100023,Shanghai,pro,2021-11-05,34,84.51,9.0,5,1,1,bad network,1
+100024,Beijing,basic,2020-11-09,16,38.6,10.0,17,0,0,app crash,1
+100025,Shanghai,basic,2020-06-15,26,39.16,78.0,11,0,0,bad network,1
+100026,Xiamen,basic,2020-06-24,4,35.66,75.0,23,1,1,coupon issue,0
+100027,Chengdu,pro,2020-07-01,26,78.12,12.0,16,2,0,pricing high,0
+100028,Shanghai,basic,2021-08-01,12,44.18,33.0,30,1,0,coupon issue,1
+100029,Wuhan,basic,2020-01-26,34,40.32,76.0,25,2,0,bad network,0
+100030,Beijing,basic,2021-12-01,23,42.51,8.0,41,0,1,coupon issue,0
+100031,Shanghai,pro,2020-04-04,33,76.9,85.0,20,1,0,app crash,1
+100032,Beijing,pro,2020-12-22,33,79.22,71.0,39,2,0,,0
+100033,Shenzhen,pro,2020-08-16,26,82.21,80.0,22,0,0,bad network,0
+100034,Wuhan,basic,2021-09-09,5,38.62,65.0,11,3,1,coupon issue,0
+100035,Nanjing,pro,2020-11-10,17,72.99,52.0,14,0,0,pricing high,0
+100036,Beijing,basic,2021-04-30,26,40.57,70.0,3,2,1,coupon issue,0
+100037,Shanghai,basic,2020-01-11,31,39.69,2.0,11,0,1,coupon issue,1
+100038,Beijing,basic,2021-05-03,29,41.49,54.0,4,0,1,slow loading,0
+100039,Nanjing,pro,2021-02-04,16,82.98,3.0,10,0,0,no issues,0
+100040,Beijing,pro,2020-06-08,1,76.34,24.0,29,2,0,coupon issue,0
+100041,Qingdao,basic,2021-01-30,14,37.4,88.0,12,2,0,pricing high,0
+100042,Beijing,pro,2021-11-22,6,82.34,13.0,18,1,0,pricing high,0
+100043,Shenzhen,pro,2021-11-02,35,78.92,37.0,9,0,0,great service,1
+100044,Chengdu,basic,2020-05-23,13,36.11,50.0,15,2,1,,1
+100045,Shenzhen,pro,2021-01-14,20,83.3,79.0,26,1,1,,0
+100046,Nanjing,basic,2021-05-30,20,38.14,30.0,16,1,0,,1
+100047,Wuhan,pro,2021-07-03,18,74.49,32.0,13,2,0,helpful staff,1
+100048,Shenzhen,basic,2020-08-27,17,40.03,14.0,11,5,0,great service,1
+100049,Shanghai,basic,2020-05-21,11,37.91,16.0,14,0,0,helpful staff,1
+100050,Hangzhou,basic,2021-10-05,30,33.94,75.0,22,3,0,pricing high,1
+100051,Hangzhou,pro,2021-01-12,13,85.11,45.0,16,2,0,great service,0
+100052,Shenzhen,pro,2020-11-02,1,76.7,30.0,28,0,1,pricing high,1
+100053,Xiamen,basic,2021-01-11,19,36.3,57.0,2,1,1,no issues,0
+100054,Qingdao,vip,2020-04-22,18,131.14,65.0,5,1,1,pricing high,0
+100055,Shenzhen,basic,2020-02-24,11,34.04,3.0,14,2,1,slow loading,0
+100056,Wuhan,pro,2021-07-10,16,80.62,74.0,25,1,0,no issues,0
+100057,Wuhan,pro,2021-01-22,14,81.14,4.0,12,2,0,great service,0
+100058,Shenzhen,pro,2020-03-24,15,75.88,76.0,39,1,0,pricing high,1
+100059,Beijing,basic,2020-03-28,16,40.57,64.0,28,1,0,app crash,0
+100060,Beijing,vip,2020-08-08,13,134.54,12.0,40,0,0,helpful staff,0
+100061,Shanghai,basic,2021-02-13,34,33.92,67.0,9,0,1,pricing high,1
+100062,Shanghai,pro,2020-09-10,22,81.35,58.0,11,0,0,slow loading,0
+100063,Beijing,pro,2020-11-07,23,78.5,39.0,27,5,0,no issues,1
+100064,Beijing,basic,2021-12-19,33,41.86,86.0,10,0,0,,1
+100065,Shenzhen,basic,2020-06-17,23,35.91,34.0,32,1,0,,1
+100066,Nanjing,vip,2020-12-07,4,128.96,45.0,5,0,0,slow loading,1
+100067,Wuhan,basic,2020-05-19,31,34.51,61.0,37,2,0,,1
+100068,Shanghai,vip,2020-03-05,33,129.47,16.0,29,0,0,app crash,0
+100069,Shenzhen,basic,2021-12-07,19,41.79,55.0,26,2,1,,1
+100070,Shenzhen,pro,2021-08-23,20,81.57,71.0,25,0,0,great service,1
+100071,Chengdu,basic,2020-06-21,24,37.33,65.0,40,1,1,bad network,0
+100072,Chengdu,basic,2020-10-10,5,39.18,,19,0,1,bad network,0
+100073,Changsha,pro,2020-05-18,7,75.75,24.0,11,1,0,great service,1
+100074,Wuhan,vip,2021-07-11,22,129.12,54.0,6,0,0,,0
+100075,Xiamen,basic,2021-04-24,33,39.65,1.0,13,1,0,,1
+100076,Changsha,vip,2021-04-16,24,127.56,17.0,6,0,1,helpful staff,0
+100077,Nanjing,pro,2020-11-28,34,80.19,51.0,6,3,0,great service,1
+100078,Xiamen,pro,2021-01-03,23,78.72,35.0,24,2,0,helpful staff,1
+100079,Nanjing,basic,2021-03-02,12,39.04,14.0,25,2,0,coupon issue,1
+100080,Qingdao,basic,2020-06-27,2,37.78,42.0,19,0,0,no issues,1
+100081,Shanghai,basic,2020-06-11,11,38.34,68.0,19,4,0,app crash,0
+100082,Chengdu,pro,2021-01-17,19,77.33,14.0,20,0,1,no issues,0
+100083,Beijing,basic,2020-10-07,2,39.31,69.0,39,1,1,pricing high,1
+100084,Shanghai,basic,2020-08-31,7,40.67,22.0,31,2,0,bad network,0
+100085,Shenzhen,vip,2020-09-20,12,127.29,46.0,42,0,0,bad network,0
+100086,Beijing,basic,2020-10-04,6,43.94,14.0,27,0,0,great service,1
+100087,Nanjing,pro,2021-08-19,34,82.6,36.0,15,0,1,,0
+100088,Nanjing,vip,2021-08-26,20,125.51,4.0,36,1,1,bad network,0
+100089,Beijing,pro,2020-11-12,20,78.89,89.0,16,0,0,bad network,1
+100090,Qingdao,vip,2021-01-18,15,126.0,65.0,33,1,0,pricing high,0
+100091,Qingdao,pro,2021-06-05,35,80.9,40.0,23,3,0,pricing high,1
+100092,Shenzhen,pro,2020-12-04,21,81.3,45.0,21,1,0,helpful staff,1
+100093,Changsha,pro,2021-07-02,26,77.88,59.0,24,1,1,bad network,1
+100094,Wuhan,basic,2021-07-15,10,37.99,25.0,24,1,0,coupon issue,0
+100095,Changsha,pro,2021-12-03,26,82.14,87.0,22,1,0,app crash,0
+100096,Xiamen,vip,2021-11-27,30,126.14,49.0,28,1,0,coupon issue,0
+100097,Shanghai,pro,2020-08-10,9,78.39,68.0,49,1,0,pricing high,1
+100098,Nanjing,basic,2020-04-08,11,37.63,77.0,12,0,0,slow loading,0
+100099,Chengdu,basic,2021-10-02,16,38.31,89.0,9,0,0,,1
+100100,Shanghai,basic,2020-04-23,9,40.3,24.0,21,1,1,helpful staff,0
+100101,Qingdao,pro,2020-08-21,1,79.54,89.0,34,0,1,pricing high,1
+100102,Nanjing,basic,2021-06-05,27,40.56,31.0,28,2,0,slow loading,0
+100103,Beijing,basic,2020-03-04,33,39.24,8.0,15,1,0,helpful staff,1
+100104,Wuhan,pro,2021-03-04,12,84.31,15.0,17,4,0,pricing high,1
+100105,Beijing,pro,2021-07-08,11,84.16,33.0,0,0,1,great service,1
+100106,Changsha,pro,2021-11-26,25,79.55,89.0,23,1,0,coupon issue,0
+100107,Beijing,basic,2021-01-22,34,37.91,26.0,1,2,1,great service,0
+100108,Hangzhou,basic,2020-04-28,10,36.01,68.0,0,1,0,pricing high,1
+100109,Hangzhou,basic,2021-08-28,1,38.97,19.0,16,1,1,helpful staff,1
+100110,Shanghai,basic,2020-03-17,17,44.88,17.0,8,0,0,helpful staff,1
+100111,Chengdu,vip,2020-11-01,13,126.98,32.0,9,0,0,bad network,0
+100112,Nanjing,basic,2020-03-16,2,34.87,10.0,0,0,1,slow loading,0
+100113,Hangzhou,basic,2021-01-22,3,40.57,29.0,13,2,1,helpful staff,0
+100114,Changsha,basic,2020-01-23,17,36.62,11.0,26,0,0,app crash,1
+100115,Chengdu,basic,2020-10-07,14,39.2,83.0,0,1,0,helpful staff,1
+100116,Shenzhen,basic,2021-09-22,3,41.32,34.0,40,0,1,bad network,0
+100117,Shenzhen,basic,2020-03-16,34,36.49,83.0,27,1,1,coupon issue,1
+100118,Nanjing,basic,2021-11-14,32,43.86,50.0,17,3,0,,1
+100119,Qingdao,pro,2021-08-01,24,79.51,14.0,15,1,1,slow loading,0
+100120,Shenzhen,vip,2020-04-03,14,122.75,72.0,29,2,0,,0
+100121,Hangzhou,pro,2020-11-12,25,80.21,,42,0,0,no issues,0
+100122,Shanghai,basic,2020-12-25,5,34.31,3.0,31,1,0,pricing high,0
+100123,Beijing,basic,2020-05-29,15,40.24,87.0,25,3,0,app crash,0
+100124,Changsha,basic,2021-10-27,20,36.8,27.0,18,0,1,great service,0
+100125,Qingdao,basic,2020-07-29,3,37.87,82.0,15,1,0,pricing high,1
+100126,Chengdu,vip,2020-10-10,24,132.99,78.0,31,4,1,app crash,0
+100127,Beijing,pro,2021-02-18,16,70.4,41.0,18,1,0,slow loading,0
+100128,Xiamen,pro,2021-09-27,12,77.37,14.0,0,1,0,coupon issue,1
+100129,Chengdu,basic,2021-04-20,6,37.53,17.0,28,3,1,slow loading,1
+100130,Shanghai,basic,2021-03-26,15,45.69,39.0,31,1,0,pricing high,0
+100131,Hangzhou,basic,2021-01-22,27,41.76,64.0,28,1,0,app crash,1
+100132,Shanghai,vip,2021-06-09,18,125.26,43.0,12,0,0,no issues,0
+100133,Changsha,basic,2021-07-16,10,38.08,42.0,16,3,0,no issues,1
+100134,Nanjing,pro,2020-09-12,25,76.83,33.0,25,3,0,bad network,0
+100135,Shanghai,pro,2020-08-27,26,78.43,24.0,45,1,0,app crash,0
+100136,Shanghai,pro,2020-10-06,27,76.57,32.0,3,0,0,bad network,0
+100137,Shenzhen,basic,2020-05-12,9,35.69,70.0,6,2,0,bad network,1
+100138,Shanghai,basic,2021-09-20,7,38.87,28.0,21,0,0,pricing high,0
+100139,Nanjing,vip,2020-09-18,22,132.94,57.0,0,2,1,helpful staff,1
+100140,Nanjing,basic,2020-02-20,18,40.85,36.0,23,2,0,slow loading,0
+100141,Shanghai,vip,2020-06-06,5,131.52,36.0,18,2,0,bad network,1
+100142,Nanjing,vip,2021-12-15,3,127.9,75.0,12,0,0,pricing high,1
+100143,Shenzhen,pro,2021-05-25,15,75.56,21.0,12,1,0,pricing high,0
+100144,Hangzhou,basic,2021-06-16,30,34.64,19.0,20,2,0,slow loading,0
+100145,Chengdu,pro,2021-06-23,9,71.97,16.0,8,1,1,no issues,0
+100146,Shanghai,basic,2020-05-06,3,39.72,22.0,7,1,0,bad network,1
+100147,Beijing,pro,2020-01-18,19,78.35,72.0,23,0,0,coupon issue,1
+100148,Changsha,pro,2020-06-30,9,79.97,3.0,26,2,1,slow loading,1
+100149,Xiamen,vip,2020-03-18,4,125.34,55.0,21,0,1,no issues,0
+100150,Hangzhou,pro,2021-05-05,2,74.59,73.0,0,0,0,app crash,1
+100151,Qingdao,pro,2020-01-06,28,77.48,22.0,26,2,1,no issues,0
+100152,Changsha,basic,2020-03-12,24,38.69,42.0,34,0,0,pricing high,1
+100153,Wuhan,vip,2021-11-13,28,129.41,27.0,17,0,0,slow loading,0
+100154,Qingdao,pro,2021-09-25,22,77.39,44.0,12,2,0,great service,0
+100155,Beijing,pro,2020-09-05,11,79.54,19.0,24,1,0,coupon issue,0
+100156,Nanjing,pro,2020-02-12,4,79.71,42.0,14,1,1,,1
+100157,Beijing,vip,2020-05-16,24,129.38,82.0,13,0,0,great service,0
+100158,Wuhan,basic,2020-10-29,19,39.29,74.0,13,3,0,helpful staff,1
+100159,Shenzhen,basic,2021-11-26,28,36.54,23.0,15,0,1,no issues,1
+100160,Shanghai,pro,2020-09-04,27,77.52,19.0,10,1,0,,0
+100161,Shenzhen,pro,2020-11-13,12,79.21,62.0,10,1,0,great service,1
+100162,Hangzhou,pro,2021-04-13,2,77.65,68.0,4,2,0,,1
+100163,Shanghai,pro,2020-04-15,19,71.69,82.0,28,2,0,great service,0
+100164,Shanghai,pro,2020-10-20,25,73.44,2.0,16,0,1,no issues,0
+100165,Shanghai,basic,2021-05-13,6,39.28,20.0,25,4,0,pricing high,0
+100166,Changsha,vip,2020-06-13,12,130.45,57.0,0,1,0,pricing high,0
+100167,Chengdu,vip,2020-05-07,21,128.32,71.0,20,0,0,app crash,0
+100168,Shenzhen,pro,2020-02-11,15,76.3,29.0,20,0,1,bad network,0
+100169,Beijing,basic,2021-11-04,4,40.98,15.0,22,0,0,app crash,0
+100170,Xiamen,basic,2020-04-02,9,34.81,40.0,6,0,1,great service,0
+100171,Hangzhou,pro,2021-07-17,32,79.71,18.0,13,3,0,pricing high,1
+100172,Beijing,basic,2021-09-23,13,37.63,1.0,0,3,1,helpful staff,1
+100173,Xiamen,basic,2020-11-14,21,37.26,40.0,25,0,1,bad network,1
+100174,Changsha,vip,2020-02-14,18,125.52,1.0,21,3,0,app crash,0
+100175,Shanghai,pro,2021-11-08,24,78.05,66.0,6,2,0,coupon issue,1
+100176,Shenzhen,basic,2020-05-25,26,33.84,41.0,9,1,1,slow loading,0
+100177,Wuhan,vip,2021-09-18,4,129.28,62.0,0,0,0,pricing high,0
+100178,Chengdu,pro,2020-05-18,18,79.74,30.0,12,2,1,,0
+100179,Shenzhen,basic,2021-05-18,7,38.29,61.0,25,0,0,helpful staff,1
+100180,Shanghai,basic,2020-09-02,11,44.09,33.0,29,0,0,helpful staff,0
+100181,Beijing,basic,2020-03-11,8,38.24,53.0,16,1,0,slow loading,1
+100182,Chengdu,pro,2021-01-26,32,79.26,25.0,23,3,0,bad network,0
+100183,Beijing,basic,2021-06-13,4,35.67,75.0,27,2,0,coupon issue,1
+100184,Changsha,basic,2020-04-29,1,40.75,83.0,20,1,0,helpful staff,0
+100185,Shanghai,basic,2021-06-05,32,37.57,87.0,14,1,0,no issues,1
+100186,Chengdu,basic,2020-07-13,15,41.77,31.0,42,1,1,bad network,1
+100187,Xiamen,basic,2020-06-14,20,35.33,11.0,54,1,1,app crash,0
+100188,Chengdu,vip,2020-09-10,19,134.17,14.0,24,0,0,great service,0
+100189,Shanghai,basic,2021-10-28,27,34.78,21.0,16,0,0,helpful staff,1
+100190,Nanjing,basic,2020-02-19,22,40.22,2.0,6,4,0,slow loading,0
+100191,Nanjing,basic,2020-01-27,25,39.28,72.0,30,1,1,great service,1
+100192,Shenzhen,pro,2021-09-13,29,77.46,54.0,7,0,0,great service,1
+100193,Shenzhen,basic,2020-12-07,2,38.22,79.0,21,2,0,pricing high,1
+100194,Nanjing,basic,2020-12-28,20,37.43,,32,0,1,coupon issue,1
+100195,Beijing,pro,2020-09-14,8,81.54,73.0,35,0,1,app crash,1
+100196,Beijing,pro,2020-10-18,1,81.81,6.0,21,0,0,coupon issue,1
+100197,Qingdao,basic,2021-07-11,12,36.57,64.0,11,0,0,helpful staff,1
+100198,Shenzhen,vip,2021-06-22,32,132.74,10.0,0,1,0,helpful staff,0
+100199,Beijing,basic,2021-08-06,22,40.44,6.0,27,1,0,coupon issue,0
+100200,Shenzhen,basic,2021-01-31,33,37.59,33.0,26,0,0,,1
+100201,Qingdao,basic,2020-08-06,12,39.04,34.0,10,2,0,app crash,0
+100202,Beijing,basic,2021-05-29,35,37.7,,31,1,0,slow loading,0
+100203,Shanghai,vip,2020-04-23,33,129.28,55.0,21,2,0,slow loading,0
+100204,Nanjing,basic,2020-03-01,25,35.14,63.0,8,0,1,bad network,0
+100205,Beijing,pro,2021-10-18,8,74.82,27.0,25,0,1,great service,0
+100206,Chengdu,pro,2021-04-07,9,81.03,43.0,32,1,0,coupon issue,1
+100207,Hangzhou,basic,2021-03-25,27,38.42,31.0,29,0,1,coupon issue,1
+100208,Chengdu,basic,2020-11-02,11,41.73,23.0,0,0,0,helpful staff,1
+100209,Shanghai,pro,2021-05-24,26,79.83,38.0,24,2,0,great service,1
+100210,Beijing,pro,2021-02-01,35,81.78,77.0,10,0,0,slow loading,0
+100211,Beijing,basic,2020-07-31,32,37.52,44.0,20,1,1,helpful staff,0
+100212,Shanghai,pro,2021-07-13,29,78.14,37.0,46,1,0,pricing high,1
+100213,Beijing,vip,2020-03-23,21,133.41,12.0,31,1,0,great service,0
+100214,Chengdu,basic,2020-05-23,4,42.15,6.0,37,1,0,coupon issue,1
+100215,Shanghai,basic,2021-09-29,22,41.25,53.0,27,3,0,pricing high,1
+100216,Hangzhou,vip,2020-04-10,7,127.94,48.0,50,0,0,great service,1
+100217,Chengdu,basic,2020-07-10,30,38.66,8.0,15,1,0,slow loading,0
+100218,Qingdao,pro,2020-12-29,33,77.45,62.0,12,2,1,bad network,0
+100219,Chengdu,basic,2020-07-27,3,35.52,4.0,17,2,1,slow loading,1
+100220,Shanghai,basic,2020-01-11,35,37.94,78.0,13,0,0,no issues,1
+100221,Shanghai,pro,2020-10-01,26,77.1,40.0,0,2,0,bad network,0
+100222,Beijing,pro,2021-11-05,34,84.47,9.0,32,2,1,app crash,0
+100223,Hangzhou,basic,2020-05-24,33,38.61,79.0,26,1,1,great service,0
+100224,Beijing,pro,2020-07-04,30,77.39,4.0,26,3,0,great service,0
+100225,Shenzhen,basic,2021-07-17,33,35.43,49.0,10,0,0,no issues,1
+100226,Beijing,vip,2020-01-26,34,130.75,74.0,20,1,0,,0
+100227,Hangzhou,basic,2021-10-09,29,38.7,45.0,21,1,0,helpful staff,1
+100228,Beijing,basic,2020-06-22,20,36.71,48.0,46,2,0,pricing high,1
+100229,Beijing,pro,2020-11-30,5,81.76,67.0,24,1,0,no issues,1
+100230,Beijing,pro,2020-07-28,17,79.03,74.0,26,3,1,slow loading,1
+100231,Xiamen,basic,2021-07-23,31,37.89,30.0,13,1,1,no issues,0
+100232,Nanjing,basic,2020-12-24,33,40.84,84.0,25,1,0,,0
+100233,Shanghai,basic,2020-10-01,2,40.5,31.0,18,3,0,slow loading,0
+100234,Shenzhen,vip,2020-02-13,13,132.98,20.0,33,1,0,pricing high,1
+100235,Nanjing,basic,2020-10-02,20,39.55,56.0,24,1,0,bad network,0
+100236,Nanjing,pro,2020-02-19,10,80.38,26.0,20,5,1,helpful staff,1
+100237,Hangzhou,pro,2021-02-15,27,82.11,20.0,36,1,0,slow loading,1
+100238,Hangzhou,pro,2020-03-29,11,74.0,55.0,12,1,0,helpful staff,0
+100239,Shanghai,basic,2021-06-25,21,36.95,76.0,22,1,1,no issues,0
+100240,Beijing,vip,2021-11-19,3,128.83,78.0,33,1,1,helpful staff,0
+100241,Chengdu,pro,2021-08-07,26,78.74,73.0,8,2,0,,1
+100242,Hangzhou,basic,2021-11-04,34,42.86,20.0,19,1,0,slow loading,0
+100243,Chengdu,basic,2020-01-25,30,34.71,70.0,21,2,0,pricing high,1
+100244,Shanghai,basic,2020-06-04,9,40.1,63.0,26,0,1,slow loading,0
+100245,Changsha,basic,2020-03-20,27,39.42,44.0,17,0,1,great service,0
+100246,Beijing,vip,2021-03-07,19,131.86,60.0,21,2,0,coupon issue,0
+100247,Shenzhen,pro,2021-04-23,10,70.42,14.0,18,1,1,no issues,0
+100248,Wuhan,basic,2021-06-04,28,42.12,9.0,22,1,0,app crash,0
+100249,Nanjing,pro,2020-09-02,17,75.21,66.0,4,3,0,coupon issue,1
+100250,Beijing,pro,2020-05-26,10,76.51,22.0,32,1,0,slow loading,1
+100251,Beijing,basic,2021-10-03,19,34.14,25.0,32,2,0,coupon issue,0
+100252,Hangzhou,basic,2020-05-27,30,37.37,73.0,0,0,0,slow loading,1
+100253,Shanghai,pro,2020-09-27,19,77.72,33.0,26,2,0,app crash,1
+100254,Xiamen,pro,2020-12-04,22,79.03,34.0,13,1,1,no issues,0
+100255,Beijing,basic,2021-09-07,24,40.68,47.0,26,0,0,helpful staff,0
+100256,Shanghai,basic,2020-03-28,32,44.18,41.0,23,0,0,pricing high,1
+100257,Beijing,basic,2020-12-25,7,37.39,8.0,29,1,0,coupon issue,1
+100258,Shanghai,basic,2021-09-25,20,44.53,55.0,0,1,1,app crash,1
+100259,Chengdu,vip,2021-03-23,15,129.69,89.0,20,2,1,,0
+100260,Qingdao,pro,2021-02-08,12,81.93,13.0,37,1,1,great service,0
+100261,Shanghai,basic,2021-10-28,9,34.59,61.0,10,1,0,app crash,1
+100262,Shanghai,basic,2020-04-05,25,36.97,7.0,0,0,1,slow loading,1
+100263,Shanghai,basic,2020-12-08,19,41.68,71.0,33,1,1,coupon issue,1
+100264,Shanghai,basic,2021-11-07,12,38.72,22.0,12,2,0,,1
+100265,Hangzhou,pro,2020-10-19,9,82.06,42.0,15,0,1,slow loading,0
+100266,Beijing,pro,2021-06-28,7,79.0,55.0,24,0,0,bad network,1
+100267,Hangzhou,basic,2021-08-25,22,35.18,71.0,11,1,0,no issues,0
+100268,Chengdu,basic,2021-01-24,23,42.17,53.0,0,1,1,great service,1
+100269,Qingdao,basic,2020-06-30,18,38.6,68.0,39,0,1,great service,1
+100270,Changsha,basic,2020-01-04,21,31.45,42.0,7,1,0,app crash,0
+100271,Chengdu,basic,2021-10-17,14,39.08,20.0,36,2,0,helpful staff,0
+100272,Beijing,basic,2021-08-25,12,36.65,57.0,12,0,1,,0
+100273,Shenzhen,basic,2020-04-11,7,43.27,13.0,39,0,0,bad network,1
+100274,Nanjing,basic,2021-01-28,23,36.7,16.0,47,1,1,no issues,0
+100275,Wuhan,basic,2020-08-08,4,33.08,54.0,16,0,0,slow loading,1
+100276,Shenzhen,basic,2021-03-27,27,37.11,49.0,24,5,0,pricing high,0
+100277,Shanghai,basic,2020-01-18,25,36.48,68.0,18,1,0,coupon issue,1
+100278,Shanghai,pro,2021-12-29,1,78.78,40.0,18,0,0,pricing high,1
+100279,Qingdao,basic,2020-03-31,3,43.27,17.0,8,1,0,helpful staff,1
+100280,Shenzhen,basic,2020-01-12,18,42.54,68.0,49,0,1,pricing high,0
+100281,Chengdu,basic,2020-08-07,15,41.58,57.0,1,2,0,pricing high,1
+100282,Wuhan,basic,2020-02-26,30,39.69,5.0,14,2,0,app crash,1
+100283,Shenzhen,basic,2021-05-24,29,44.48,54.0,35,4,1,,0
+100284,Changsha,basic,2020-04-15,29,35.12,15.0,22,0,1,bad network,1
+100285,Shanghai,basic,2021-02-19,18,36.53,62.0,24,1,0,coupon issue,0
+100286,Beijing,vip,2021-12-17,19,130.11,83.0,11,0,0,great service,0
+100287,Shenzhen,pro,2021-09-02,24,84.92,13.0,56,0,0,pricing high,0
+100288,Hangzhou,pro,2020-05-02,28,79.72,72.0,9,0,0,helpful staff,1
+100289,Shenzhen,basic,2021-04-25,1,36.91,11.0,26,0,0,coupon issue,0
+100290,Hangzhou,basic,2021-05-07,31,35.43,50.0,28,4,0,great service,1
+100291,Shenzhen,basic,2020-02-16,7,40.69,3.0,3,1,0,bad network,0
+100292,Nanjing,vip,2020-05-11,33,128.65,86.0,4,1,1,helpful staff,0
+100293,Chengdu,basic,2020-01-23,17,37.97,3.0,23,0,0,no issues,1
+100294,Nanjing,basic,2021-11-29,22,40.4,64.0,34,1,1,helpful staff,1
+100295,Chengdu,vip,2020-08-22,16,126.26,23.0,27,0,0,great service,0
+100296,Shanghai,pro,2020-08-26,16,82.29,26.0,30,1,0,great service,0
+100297,Shanghai,pro,2021-05-21,8,74.95,76.0,22,2,1,great service,0
+100298,Shanghai,basic,2020-05-20,20,37.99,79.0,6,1,1,great service,0
+100299,Beijing,pro,2020-01-18,31,82.24,69.0,17,0,0,pricing high,0
+100300,Chengdu,pro,2020-04-01,20,84.23,61.0,13,1,0,pricing high,0
+100301,Shanghai,pro,2020-09-22,14,79.83,39.0,26,0,1,app crash,1
+100302,Wuhan,vip,2021-12-05,11,135.19,85.0,31,2,0,app crash,0
+100303,Xiamen,basic,2021-09-13,14,39.41,,30,0,1,great service,0
+100304,Beijing,pro,2021-07-29,19,81.34,75.0,23,4,0,no issues,1
+100305,Changsha,basic,2020-12-30,22,40.46,20.0,0,1,1,pricing high,0
+100306,Shanghai,basic,2021-06-29,24,40.62,7.0,20,3,1,great service,0
+100307,Shenzhen,basic,2020-03-15,21,38.83,53.0,22,0,0,coupon issue,0
+100308,Qingdao,pro,2021-04-08,33,78.23,73.0,2,1,0,slow loading,0
+100309,Nanjing,basic,2020-03-08,10,39.97,40.0,11,0,0,slow loading,1
+100310,Shenzhen,basic,2021-08-11,29,33.82,39.0,7,1,0,slow loading,0
+100311,Nanjing,pro,2021-07-31,12,76.86,63.0,1,2,0,bad network,0
+100312,Shenzhen,pro,2021-12-09,21,79.39,73.0,6,1,1,,0
+100313,Wuhan,pro,2020-03-31,26,76.06,44.0,24,1,1,coupon issue,0
+100314,Hangzhou,pro,2021-12-24,30,75.16,15.0,12,3,0,helpful staff,1
+100315,Nanjing,pro,2021-03-19,17,81.94,4.0,19,1,1,bad network,0
+100316,Hangzhou,basic,2020-11-03,26,38.32,48.0,21,0,0,,1
+100317,Nanjing,vip,2021-11-16,23,133.26,49.0,1,0,0,helpful staff,0
+100318,Nanjing,pro,2021-07-27,22,82.41,,14,0,1,slow loading,0
+100319,Nanjing,basic,2020-11-04,35,39.27,12.0,5,1,0,pricing high,1
+100320,Nanjing,pro,2020-10-10,22,80.78,36.0,35,2,0,,1
+100321,Hangzhou,pro,2021-12-21,10,74.82,3.0,32,4,0,bad network,1
+100322,Xiamen,basic,2021-10-30,22,34.24,17.0,38,1,0,,1
+100323,Changsha,basic,2020-10-21,10,40.41,86.0,31,0,0,no issues,0
+100324,Beijing,pro,2021-02-18,6,78.2,17.0,39,2,0,slow loading,0
+100325,Nanjing,pro,2020-07-22,25,78.37,2.0,26,0,0,pricing high,0
+100326,Beijing,vip,2021-01-01,33,131.15,18.0,25,0,0,bad network,1
+100327,Shanghai,basic,2020-08-31,17,40.02,80.0,26,0,0,bad network,1
+100328,Shanghai,basic,2021-10-02,26,35.93,26.0,10,2,0,great service,1
+100329,Beijing,basic,2020-06-22,4,33.68,16.0,31,2,0,,1
+100330,Changsha,pro,2020-03-04,10,80.94,26.0,13,0,0,bad network,0
+100331,Qingdao,basic,2021-02-25,24,40.04,29.0,23,2,1,slow loading,0
+100332,Nanjing,pro,2021-07-22,29,81.18,84.0,12,2,0,slow loading,0
+100333,Shanghai,pro,2020-12-12,20,78.73,84.0,16,2,1,no issues,0
+100334,Shanghai,basic,2021-09-20,1,40.87,77.0,17,0,1,coupon issue,1
+100335,Shanghai,basic,2020-01-10,27,38.49,40.0,20,1,0,coupon issue,0
+100336,Chengdu,basic,2021-04-23,11,44.92,22.0,27,2,0,coupon issue,0
+100337,Qingdao,pro,2021-04-27,13,80.28,44.0,36,0,1,great service,0
+100338,Wuhan,basic,2020-01-10,25,38.5,83.0,5,0,0,,1
+100339,Shanghai,basic,2020-02-26,5,40.79,58.0,16,2,0,pricing high,1
+100340,Beijing,basic,2021-06-09,28,39.84,56.0,28,2,0,helpful staff,1
+100341,Chengdu,basic,2020-07-27,29,41.1,75.0,15,2,1,pricing high,0
+100342,Wuhan,pro,2021-12-20,15,80.9,55.0,15,1,0,great service,1
+100343,Shenzhen,pro,2021-01-04,18,78.32,58.0,17,2,0,pricing high,1
+100344,Beijing,pro,2021-10-09,14,81.77,72.0,31,1,0,no issues,0
+100345,Beijing,basic,2021-08-19,1,40.38,23.0,0,1,0,great service,1
+100346,Beijing,basic,2021-02-26,6,44.34,1.0,14,3,1,coupon issue,0
+100347,Shenzhen,basic,2021-09-28,30,38.04,59.0,17,2,0,bad network,1
+100348,Changsha,pro,2020-07-25,9,77.42,47.0,33,4,0,helpful staff,1
+100349,Shenzhen,pro,2020-07-17,14,81.56,59.0,22,0,1,coupon issue,0
+100350,Hangzhou,pro,2020-02-20,4,80.73,12.0,16,2,0,pricing high,0
+100351,Shanghai,basic,2020-06-04,13,41.6,6.0,27,0,0,coupon issue,1
+100352,Qingdao,vip,2020-04-06,4,127.78,38.0,5,2,0,coupon issue,1
+100353,Shanghai,basic,2020-05-17,5,39.05,62.0,14,1,0,helpful staff,0
+100354,Beijing,basic,2021-05-16,26,37.53,17.0,23,0,0,,1
+100355,Hangzhou,basic,2020-02-16,8,35.35,21.0,0,0,0,coupon issue,0
+100356,Shenzhen,basic,2021-06-08,30,40.93,29.0,1,0,0,pricing high,0
+100357,Shanghai,basic,2020-10-25,15,43.06,21.0,14,0,0,bad network,1
+100358,Beijing,basic,2020-08-24,20,39.97,3.0,6,1,0,no issues,1
+100359,Hangzhou,basic,2020-05-11,26,41.27,71.0,33,2,1,pricing high,0
+100360,Beijing,basic,2021-05-05,23,39.59,28.0,34,2,1,coupon issue,1
+100361,Changsha,basic,2020-05-14,3,39.08,64.0,10,2,1,pricing high,1
+100362,Shanghai,pro,2021-06-22,26,76.02,63.0,12,1,1,no issues,1
+100363,Chengdu,basic,2020-11-13,22,38.24,37.0,29,0,0,,1
+100364,Beijing,basic,2021-05-05,11,40.32,65.0,9,2,0,bad network,1
+100365,Shanghai,pro,2021-03-06,6,75.24,,30,2,1,no issues,0
+100366,Nanjing,vip,2021-10-12,34,129.77,64.0,40,1,0,slow loading,0
+100367,Shanghai,basic,2020-01-30,13,34.93,77.0,9,4,1,app crash,1
+100368,Beijing,vip,2020-04-01,28,135.6,56.0,11,0,0,app crash,0
+100369,Beijing,pro,2020-03-13,1,78.5,47.0,17,1,0,no issues,1
+100370,Beijing,basic,2021-05-10,12,37.84,39.0,28,1,1,helpful staff,0
+100371,Shenzhen,basic,2020-10-18,12,36.53,35.0,18,0,0,app crash,0
+100372,Wuhan,pro,2021-07-17,9,71.16,26.0,15,3,1,bad network,0
+100373,Beijing,vip,2020-10-27,23,131.26,9.0,20,0,0,no issues,0
+100374,Shanghai,basic,2020-02-21,33,38.34,10.0,22,0,0,slow loading,0
+100375,Shenzhen,pro,2020-02-18,9,79.09,17.0,26,1,0,helpful staff,0
+100376,Shenzhen,basic,2020-12-30,12,37.06,6.0,8,1,0,bad network,0
+100377,Nanjing,pro,2021-05-31,34,76.7,50.0,19,1,1,,0
+100378,Wuhan,vip,2020-11-03,22,128.37,58.0,15,1,0,,1
+100379,Changsha,basic,2021-05-08,10,40.13,30.0,11,0,0,great service,1
+100380,Wuhan,vip,2021-05-30,21,130.6,86.0,17,0,1,app crash,0
+100381,Shenzhen,pro,2021-11-16,18,79.22,89.0,9,2,0,slow loading,0
+100382,Shanghai,basic,2021-02-26,5,34.75,55.0,19,1,1,coupon issue,1
+100383,Hangzhou,basic,2020-08-06,27,35.99,53.0,9,1,0,no issues,0
+100384,Chengdu,vip,2020-01-19,26,133.17,1.0,20,1,1,app crash,0
+100385,Chengdu,pro,2020-01-31,16,79.15,55.0,34,2,1,app crash,0
+100386,Beijing,pro,2021-10-01,1,80.19,66.0,11,1,1,helpful staff,1
+100387,Chengdu,basic,2020-03-02,28,39.68,46.0,27,0,0,bad network,0
+100388,Chengdu,pro,2021-03-03,26,78.92,46.0,26,0,0,great service,0
+100389,Wuhan,vip,2021-10-13,25,131.94,43.0,33,0,0,coupon issue,0
+100390,Shanghai,pro,2021-11-17,26,77.57,38.0,24,0,0,app crash,0
+100391,Changsha,basic,2021-01-08,8,37.84,2.0,17,1,0,coupon issue,1
+100392,Shanghai,pro,2020-11-18,19,76.86,18.0,18,2,0,slow loading,0
+100393,Shenzhen,pro,2020-09-28,18,84.03,1.0,14,1,1,coupon issue,0
+100394,Hangzhou,basic,2020-07-28,8,31.87,13.0,20,2,0,pricing high,0
+100395,Beijing,basic,2021-12-02,9,36.85,34.0,2,0,0,pricing high,0
+100396,Shanghai,basic,2020-11-29,1,44.51,51.0,38,0,0,great service,0
+100397,Beijing,vip,2020-04-05,32,122.88,41.0,19,0,0,slow loading,0
+100398,Shenzhen,pro,2021-04-22,9,78.4,30.0,21,1,1,helpful staff,0
+100399,Shanghai,basic,2020-01-14,21,40.02,14.0,12,1,1,no issues,0
+100400,Shanghai,pro,2020-10-18,32,75.59,21.0,30,2,1,,0
+100401,Shenzhen,basic,2021-12-28,27,41.17,48.0,16,2,0,helpful staff,0
+100402,Shenzhen,pro,2021-09-19,24,79.2,40.0,7,1,0,bad network,1
+100403,Shenzhen,pro,2021-09-23,31,79.73,78.0,0,0,0,pricing high,1
+100404,Shanghai,basic,2021-12-26,34,39.93,69.0,36,2,0,app crash,1
+100405,Beijing,pro,2020-05-16,18,74.52,45.0,0,2,0,great service,1
+100406,Wuhan,basic,2020-06-20,25,40.0,88.0,19,1,0,great service,1
+100407,Nanjing,pro,2020-03-13,19,78.26,65.0,24,2,0,,0
+100408,Changsha,basic,2021-09-06,33,37.15,51.0,26,1,0,bad network,1
+100409,Chengdu,basic,2020-05-14,24,36.96,61.0,23,4,1,coupon issue,1
+100410,Shenzhen,pro,2020-11-27,15,80.28,,41,1,0,app crash,0
+100411,Qingdao,pro,2020-04-21,27,77.5,28.0,33,0,0,slow loading,0
+100412,Shanghai,basic,2021-04-17,20,40.82,25.0,17,1,0,coupon issue,0
+100413,Shenzhen,basic,2021-01-24,17,35.83,17.0,18,0,0,pricing high,1
+100414,Hangzhou,basic,2020-11-12,7,41.73,15.0,41,0,0,great service,0
+100415,Shenzhen,vip,2021-07-31,27,132.17,27.0,0,2,0,slow loading,1
+100416,Shenzhen,pro,2021-04-13,11,76.97,61.0,24,1,0,slow loading,0
+100417,Beijing,basic,2020-01-28,16,40.93,27.0,23,0,0,great service,1
+100418,Shenzhen,vip,2020-11-03,33,126.31,4.0,18,2,0,slow loading,0
+100419,Hangzhou,basic,2021-10-10,28,37.57,76.0,15,1,0,slow loading,1
+100420,Nanjing,basic,2020-12-03,30,37.62,26.0,38,1,0,bad network,0
+100421,Chengdu,pro,2021-06-28,30,82.54,31.0,28,1,0,pricing high,1
+100422,Shenzhen,basic,2021-04-10,9,37.7,23.0,43,1,1,,0
+100423,Nanjing,pro,2020-09-23,13,75.68,11.0,20,0,0,pricing high,1
+100424,Shenzhen,basic,2020-05-22,14,33.72,78.0,9,0,0,helpful staff,1
+100425,Hangzhou,basic,2020-04-27,15,43.56,5.0,30,1,1,helpful staff,0
+100426,Beijing,pro,2021-07-29,20,81.98,63.0,14,1,0,great service,1
+100427,Beijing,basic,2020-04-09,20,40.7,27.0,50,4,1,no issues,1
+100428,Changsha,basic,2021-02-11,18,42.96,28.0,29,0,0,slow loading,1
+100429,Chengdu,basic,2020-05-10,17,36.87,73.0,1,1,0,app crash,1
+100430,Chengdu,vip,2020-09-18,2,131.15,1.0,32,0,0,no issues,0
+100431,Shanghai,pro,2020-01-30,11,80.27,36.0,10,2,0,no issues,1
+100432,Shenzhen,pro,2021-04-17,15,79.86,0.0,0,0,1,pricing high,0
+100433,Nanjing,basic,2020-08-21,5,39.97,59.0,18,1,1,,0
+100434,Wuhan,basic,2021-10-26,22,38.86,2.0,18,2,1,great service,0
+100435,Shanghai,basic,2021-02-23,13,39.75,39.0,2,2,0,no issues,1
+100436,Shenzhen,basic,2021-04-12,27,43.82,54.0,24,2,0,coupon issue,1
+100437,Xiamen,basic,2021-06-05,24,38.29,62.0,9,0,0,slow loading,1
+100438,Shanghai,basic,2021-08-06,5,39.2,63.0,4,1,0,great service,1
+100439,Shanghai,vip,2021-06-15,3,126.36,73.0,30,1,0,pricing high,0
+100440,Chengdu,basic,2021-04-28,23,35.01,,12,0,1,,0
+100441,Beijing,basic,2020-06-27,31,31.93,65.0,18,0,1,app crash,1
+100442,Shanghai,pro,2021-10-02,17,77.05,70.0,17,1,1,coupon issue,0
+100443,Hangzhou,vip,2021-02-20,3,122.96,32.0,34,0,0,bad network,1
+100444,Changsha,basic,2021-11-01,21,41.71,2.0,11,1,0,app crash,0
+100445,Shanghai,basic,2020-06-27,11,37.07,82.0,17,0,0,,0
+100446,Shanghai,basic,2021-10-31,9,38.0,9.0,21,2,0,bad network,1
+100447,Shenzhen,pro,2021-04-22,19,75.7,59.0,23,0,0,slow loading,0
+100448,Hangzhou,basic,2021-07-26,22,42.54,47.0,2,1,0,,1
+100449,Shenzhen,vip,2021-06-17,19,122.75,79.0,20,1,0,app crash,1
+100450,Shanghai,vip,2021-02-14,28,130.5,47.0,6,0,1,coupon issue,1
+100451,Shanghai,basic,2021-04-12,20,41.48,,4,1,1,coupon issue,1
+100452,Shanghai,pro,2021-06-13,19,84.19,73.0,15,2,0,bad network,1
+100453,Shanghai,vip,2020-10-28,35,128.52,56.0,36,0,0,pricing high,0
+100454,Shanghai,vip,2020-10-29,14,132.37,43.0,20,0,1,app crash,1
+100455,Nanjing,vip,2021-09-01,19,127.05,70.0,15,1,0,pricing high,0
+100456,Chengdu,pro,2021-06-26,32,77.14,57.0,26,2,0,slow loading,1
+100457,Chengdu,basic,2021-08-16,25,39.83,75.0,29,3,1,slow loading,1
+100458,Shanghai,pro,2021-07-23,4,78.23,38.0,11,1,0,coupon issue,1
+100459,Shanghai,basic,2020-09-05,12,35.19,42.0,40,0,0,slow loading,0
+100460,Beijing,basic,2021-12-18,10,42.28,29.0,7,3,0,helpful staff,1
+100461,Beijing,basic,2021-09-25,19,42.04,53.0,28,1,1,helpful staff,0
+100462,Beijing,basic,2020-06-29,9,43.12,11.0,7,3,0,,1
+100463,Beijing,pro,2021-06-16,20,77.83,34.0,20,1,1,app crash,0
+100464,Chengdu,pro,2021-12-25,27,76.97,11.0,14,3,1,pricing high,1
+100465,Shenzhen,basic,2021-09-26,23,37.08,1.0,17,1,0,bad network,0
+100466,Beijing,basic,2020-09-08,9,34.98,33.0,26,0,0,app crash,1
+100467,Nanjing,basic,2020-01-14,33,42.13,12.0,20,0,0,coupon issue,1
+100468,Shanghai,pro,2020-03-20,26,79.03,16.0,39,1,0,pricing high,0
+100469,Nanjing,pro,2020-11-20,15,78.75,18.0,37,2,0,,0
+100470,Shenzhen,basic,2020-07-06,19,38.03,17.0,25,1,1,great service,0
+100471,Chengdu,vip,2021-11-09,17,133.76,,20,2,1,no issues,0
+100472,Nanjing,vip,2021-03-19,34,127.13,88.0,19,0,0,app crash,0
+100473,Beijing,basic,2021-06-24,19,42.05,77.0,28,3,0,app crash,0
+100474,Shenzhen,basic,2021-12-27,13,38.76,56.0,55,0,0,pricing high,1
+100475,Chengdu,basic,2021-09-13,19,39.32,3.0,23,1,0,slow loading,1
+100476,Shanghai,basic,2020-11-22,9,37.57,82.0,5,1,1,,0
+100477,Chengdu,pro,2021-09-11,10,77.35,74.0,26,1,1,pricing high,0
+100478,Chengdu,pro,2020-08-27,27,80.18,18.0,24,3,1,helpful staff,0
+100479,Shenzhen,pro,2021-03-11,30,76.35,12.0,11,3,1,bad network,0
+100480,Shanghai,pro,2021-08-12,11,76.37,23.0,37,0,1,no issues,1
+100481,Qingdao,basic,2020-01-05,24,39.72,7.0,30,2,0,helpful staff,1
+100482,Shanghai,basic,2020-03-29,14,42.33,61.0,27,1,0,app crash,1
+100483,Wuhan,basic,2020-08-06,18,36.02,73.0,23,1,0,helpful staff,0
+100484,Chengdu,basic,2021-11-05,35,46.28,34.0,37,1,1,coupon issue,0
+100485,Shanghai,pro,2020-02-03,1,83.54,39.0,21,2,1,coupon issue,1
+100486,Shenzhen,pro,2021-06-21,1,81.28,66.0,0,0,1,app crash,1
+100487,Shanghai,pro,2020-04-07,32,85.07,15.0,26,1,0,great service,1
+100488,Beijing,basic,2020-09-28,11,41.68,4.0,33,1,0,no issues,0
+100489,Beijing,basic,2020-03-05,2,40.51,11.0,13,1,1,great service,1
+100490,Shanghai,vip,2021-10-30,28,127.71,79.0,13,0,1,no issues,1
+100491,Shanghai,vip,2021-04-08,33,129.02,86.0,29,0,0,,0
+100492,Hangzhou,vip,2020-03-04,2,133.16,15.0,16,1,0,helpful staff,1
+100493,Shenzhen,vip,2020-11-25,17,128.21,17.0,16,1,0,,0
+100494,Nanjing,basic,2020-11-26,26,42.53,30.0,34,1,1,pricing high,1
+100495,Chengdu,basic,2021-07-13,24,35.74,49.0,29,2,1,no issues,1
+100496,Wuhan,basic,2020-08-01,22,41.83,15.0,17,1,0,bad network,1
+100497,Changsha,basic,2020-02-15,33,39.95,83.0,32,1,0,bad network,1
+100498,Shenzhen,vip,2021-03-09,1,131.18,11.0,33,2,0,pricing high,0
+100499,Chengdu,vip,2021-02-23,3,126.82,26.0,0,1,1,great service,0

@@ -1,0 +1,18 @@
+enforce_schema:
+  required: ["id"]
+basic_clean: {}
+fill_na:
+  num: median
+  cat: most_frequent
+drop_constant:
+  threshold_unique: 1
+clip_outliers:
+  method: iqr
+  z_thresh: 3.0
+  iqr_k: 1.5
+bucket_rare:
+  cols: ["city","plan"]
+  min_freq: 20
+  other_label: "_OTHER"
+parse_dates:
+  join_date: auto

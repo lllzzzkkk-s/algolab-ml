@@ -1,0 +1,10 @@
+interactions:
+  pairs:
+    - ["area","rooms"]
+    - ["distance_km","age_years"]
+binning:
+  method: quantile
+  bins: 5
+  cols: ["area"]
+freq_encoding:
+  cols: ["city"]

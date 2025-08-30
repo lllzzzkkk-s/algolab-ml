@@ -1,0 +1,11 @@
+basic_clean: {}
+fill_na:
+  num: median
+  cat: most_frequent
+clip_outliers:
+  method: iqr
+  iqr_k: 1.5
+bucket_rare:
+  cols: ["city"]
+  min_freq: 15
+  other_label: "_OTHER"

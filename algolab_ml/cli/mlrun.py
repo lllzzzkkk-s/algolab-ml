@@ -291,6 +291,7 @@ def _apply_cleaning_with_log(df: pd.DataFrame, cfg: dict, target: str | None = N
 
 
 # ----------------- 预测/打分（训练后或纯预测模式通用） -----------------
+# ----------------- 预测/打分（训练后或纯预测模式通用） -----------------
 def _run_predict(
     pipe,
     df_pred: pd.DataFrame,
@@ -303,6 +304,7 @@ def _run_predict(
     target_col: str | None = None,   # 训练时的 target 名
 ):
     import numpy as np
+    from pathlib import Path
 
     # 1) 分离 id 列
     id_cols = [c for c in (id_cols or []) if c in df_pred.columns]
@@ -312,11 +314,24 @@ def _run_predict(
     if target_col and target_col in df_pred.columns:
         df_pred = df_pred.drop(columns=[target_col])
 
-    # 3) 计算训练时的输入列（并确保不含 target）
+    # 3) 训练时的输入列（并确保不含 target）
     if expected_input_cols is None:
-        expected_input_cols = getattr(pipe, "feature_names_in_", None)
-        if expected_input_cols is None:
+        exp = getattr(pipe, "feature_names_in_", None)
+        if exp is not None:
+            # sklearn 可能返回 ndarray，这里统一成 list
+            try:
+                expected_input_cols = list(exp)
+            except Exception:
+                expected_input_cols = [c for c in df_pred.columns if c not in id_cols]
+        else:
             expected_input_cols = [c for c in df_pred.columns if c not in id_cols]
+    else:
+        # 若上游传来 ndarray，这里也统一成 list
+        try:
+            expected_input_cols = list(expected_input_cols)
+        except Exception:
+            pass
+
     if target_col:
         expected_input_cols = [c for c in expected_input_cols if c != target_col]
 
@@ -325,13 +340,53 @@ def _run_predict(
     X_pred = df_pred.drop(columns=list(drop_cols & set(df_pred.columns)), errors="ignore")
     X_pred = X_pred.reindex(columns=list(expected_input_cols), fill_value=np.nan)
 
-    # 5) 预测
-    if proba and hasattr(pipe, "predict_proba"):
-        prob = pipe.predict_proba(X_pred)
-        out_df = pd.DataFrame(prob, columns=[f"proba_{i}" for i in range(prob.shape[1])])
-    else:
-        pred = pipe.predict(X_pred)
-        out_df = pd.DataFrame({"pred": pred})
+    # 5) 安全预测：失败时自动回退（把分类列转字符串并补缺失）
+    def _predict_dataframe(X: pd.DataFrame, as_proba: bool):
+        if as_proba and hasattr(pipe, "predict_proba"):
+            prob = pipe.predict_proba(X)
+            return pd.DataFrame(prob, columns=[f"proba_{i}" for i in range(prob.shape[1])])
+        else:
+            pred = pipe.predict(X)
+            return pd.DataFrame({"pred": pred})
+
+    try:
+        out_df = _predict_dataframe(X_pred, proba)
+    except TypeError as e:
+        msg = str(e)
+        # 典型报错：ufunc 'isnan' not supported ...（OneHotEncoder 在未知值检查时触发）
+        if "ufunc 'isnan'" in msg or "isnan" in msg:
+            # 尝试从预处理器里找出“分类列”，仅对这些列做字符串化与缺失填充
+            cat_cols = []
+            try:
+                pre = pipe.named_steps.get("preprocess", None)
+            except Exception:
+                pre = None
+            if pre is not None and hasattr(pre, "transformers_"):
+                for name, trans, cols in pre.transformers_:
+                    # 经验规则：名字里包含 'cat'，或子管道里出现 OneHotEncoder
+                    is_cat = (isinstance(name, str) and "cat" in name.lower()) or ("OneHotEncoder" in str(trans))
+                    if is_cat:
+                        if isinstance(cols, (list, tuple, np.ndarray)):
+                            cat_cols.extend(list(cols))
+            # 仅保留当前存在的列
+            cat_cols = [c for c in cat_cols if c in X_pred.columns]
+
+            # 构造回退副本
+            X_fallback = X_pred.copy()
+            if cat_cols:
+                for c in cat_cols:
+                    # 先填缺失再转字符串，避免 'nan' 文本化
+                    X_fallback[c] = X_fallback[c].fillna("__NA__").astype(str)
+            else:
+                # 如果没有识别到分类列，保守地对 object 列做处理
+                obj_cols = [c for c in X_fallback.columns if str(X_fallback[c].dtype) == "object"]
+                for c in obj_cols:
+                    X_fallback[c] = X_fallback[c].fillna("__NA__").astype(str)
+
+            # 再试一次
+            out_df = _predict_dataframe(X_fallback, proba)
+        else:
+            raise
 
     # 6) 拼回 id 列 & 导出
     if id_frame is not None:
@@ -366,10 +421,10 @@ def main():
     ap.add_argument("--param-grid", default=None, help="指定搜索空间（JSON 或 @/path/file.json），不填用内置默认")
     ap.add_argument("--scoring", default=None, help="scoring 名称（如 roc_auc / accuracy / f1_macro / r2 / neg_root_mean_squared_error 等）")
     # 早停
-    ap.add_argument("--early-stopping", action="store_true", help="启用早停（LightGBM/XGBoost 生效）")
+    ap.add_argument("--early-stopping", action="store_true", help="启用早停（LightGBM/XGBoost/CatBoost 生效）")
     ap.add_argument("--val-size", type=float, default=0.15, help="早停的验证集占训练集比例")
     ap.add_argument("--es-rounds", type=int, default=50, help="没有提升的容忍迭代数")
-    ap.add_argument("--eval-metric", default=None, help="eval_metric（如 auc / logloss / rmse 等）")
+    ap.add_argument("--eval-metric", default=None, help="eval_metric（如 auc / logloss / rmse / AUC 等）")
     # 导出
     ap.add_argument("--export", action="store_true", help="保存模型与报告到 --out-dir（未指定则 runs/时间戳）")
     ap.add_argument("--out-dir", default=None, help="保存目录（默认 runs/YYYYmmdd-HHMMSS）")
@@ -413,16 +468,12 @@ def main():
         df_pred = pd.read_csv(args.predict_csv)
 
         # 尝试加载训练时元数据
-        expected_cols = None
         target_col = getattr(args, "target", None)
         if run_dir:
             cols_file = run_dir / "columns.json"
             if cols_file.exists():
                 cols_json = json.loads(cols_file.read_text(encoding="utf-8"))
-                all_cols = cols_json.get("all_columns") or []
                 tgt = cols_json.get("target")
-                if all_cols:
-                    expected_cols = [c for c in all_cols if c != tgt]
                 if tgt:
                     target_col = tgt
 
@@ -460,7 +511,7 @@ def main():
             proba=bool(getattr(args, "proba", False)),
             id_cols=id_cols,
             out_path=str(out_path) if out_path else None,
-            expected_input_cols=expected_cols,
+            expected_input_cols=None,  # 让 _run_predict 自动从 pipe.feature_names_in_ 读取
             target_col=target_col,
         )
         return
@@ -523,17 +574,15 @@ def main():
             except Exception:
                 if feat_cfg: _save_json(out_dir / "features_config.json", feat_cfg)
 
-        # 曲线与可视化
+        # 曲线与可视化（不重复打印“已保存”文案，避免重复日志）
         try:
             if report.get("task") == "classification" and "roc_auc" in report and "_y_true" in report and "_y_prob" in report:
                 plot_roc_pr_curves(report["_y_true"], report["_y_prob"], out_dir)
-                print("✅ 已保存 ROC/PR 曲线")
         except Exception:
             pass
         try:
             feature_names = getattr(pipe, "feature_names_in_", None)
             plot_feature_importance(pipe, feature_names, out_dir, top_n=30)
-            print("✅ 已保存特征重要性")
         except Exception:
             pass
         try:
@@ -546,7 +595,6 @@ def main():
             ev = report.get("evals_result")
             if ev:
                 plot_learning_curve(ev, out_dir, metric_hint=args.eval_metric, task=report.get("task"))
-                print("✅ 已保存学习曲线")
         except Exception:
             pass
 
@@ -591,12 +639,19 @@ def main():
                 id_cols = [c.strip() for c in str(id_cols_arg).split(",") if c.strip() and c.strip() in df_pred.columns]
             id_frame = df_pred[id_cols].copy() if id_cols else None
 
-            # 4) 按“训练后的 df 列”作为金标准对齐（排除 target）
-            expected_cols = [c for c in df.columns if c != args.target]
+            # 4) 以 pipeline 的 feature_names_in_ 为金标准（回退到训练 df 列，排除 target）
+            expected_cols = getattr(pipe, "feature_names_in_", None)
+            if expected_cols is None:
+                expected_cols = [c for c in df.columns if c != args.target]
+            else:
+                # numpy.ndarray -> list，避免后续出现 bool/索引歧义
+                expected_cols = list(expected_cols)
+
             drop_cols = [args.target] if args.target in df_pred.columns else []
             drop_cols += [c for c in id_cols if c in df_pred.columns]
-            X_pred = df_pred.drop(columns=drop_cols, errors="ignore")
-            X_pred = X_pred.reindex(columns=expected_cols, fill_value=np.nan)
+            X_pred = df_pred.drop(columns=drop_cols, errors="ignore").reindex(columns=expected_cols, fill_value=np.nan)
+            if args.target in X_pred.columns:
+                X_pred = X_pred.drop(columns=[args.target], errors="ignore")
 
             # 5) 预测
             if proba and hasattr(pipe, "predict_proba"):
