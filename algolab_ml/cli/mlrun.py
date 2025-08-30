@@ -26,44 +26,23 @@ def _json_default(o):
     if isinstance(o, pd.DataFrame):
         return {"columns": list(o.columns), "data": o.to_dict(orient="records")}
 
+    # --- 其他非常见类型：字符串兜底 ---
     return str(o)
-    import pandas as pd
 
-    # numpy 标量
-    if isinstance(o, (np.integer, np.int_, np.int64, np.int32)): return int(o)
-    if isinstance(o, (np.floating, np.float_, np.float64, np.float32)): return float(o)
-    if isinstance(o, (np.bool_,)): return bool(o)
-
-    # numpy 数组
-    if isinstance(o, np.ndarray): return o.tolist()
-
-    # pandas 类型
-    if isinstance(o, pd.Timestamp): return o.isoformat()
-    if hasattr(pd, "NA") and o is pd.NA: return None
-    if isinstance(o, pd.Series): return o.to_dict()
-    if isinstance(o, pd.DataFrame):
-        return {"columns": list(o.columns), "data": o.to_dict(orient="records")}
-
-    # 其他非常见类型，作为字符串兜底
-    return str(o)
 
 def _save_json(path, obj):
-    from pathlib import Path
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
-        import json
         json.dump(obj, f, ensure_ascii=False, indent=2, default=_json_default)
 
-# —— 可选工具：若包内 utils 不存在，则用本文件内兜底实现
+
+# —— 可选工具：若包内 utils 不存在，则用本文件内兜底实现（不要覆盖 _save_json）
 try:
     from algolab_ml.utils.artifacts import (
         dump_json, dump_joblib, versions_summary, git_commit_sha, make_run_dir
     )
 except Exception:  # 兜底
     import joblib, platform, importlib
-    def _save_json(p: Path, obj):
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
     def dump_joblib(p: Path, obj):
         p.parent.mkdir(parents=True, exist_ok=True)
         joblib.dump(obj, p)
@@ -108,9 +87,11 @@ except Exception:
     def plot_feature_importance(*args, **kwargs): pass
     def save_cv_results(*args, **kwargs): pass
 
+
 # ----------------- 日志工具 -----------------
 def _sec(title: str): print(f"\n------- {title} -------")
 def _print_df_shape(df: pd.DataFrame, note: str): print(f"{note}：{df.shape[0]} 行 × {df.shape[1]} 列")
+
 
 def _parse_params(s: str | None) -> dict:
     if not s: return {}
@@ -139,6 +120,7 @@ def _parse_params(s: str | None) -> dict:
         out[k] = v
     return out
 
+
 def _print_list_models(fmt: str, task: str):
     data = {
         "classification": {
@@ -161,6 +143,7 @@ def _print_list_models(fmt: str, task: str):
             for k, v in sorted(data[sc]["aliases"].items()):
                 print(f"    {k} -> {v}")
 
+
 def _print_params(name: str):
     out = {}
     for task in ("classification","regression"):
@@ -175,6 +158,7 @@ def _print_params(name: str):
         }
         raise SystemExit(f"Unknown model alias '{name}'. Available: {json.dumps(avail, ensure_ascii=False)}")
     print(json.dumps(out, ensure_ascii=False, indent=2))
+
 
 # ----------------- 带日志的清洗执行 -----------------
 def _apply_cleaning_with_log(df: pd.DataFrame, cfg: dict, target: str | None = None) -> pd.DataFrame:
@@ -299,6 +283,100 @@ def _apply_cleaning_with_log(df: pd.DataFrame, cfg: dict, target: str | None = N
     _print_df_shape(cur, "最终数据维度")
     return cur
 
+
+# ----------------- 推理流程（预测模式） -----------------
+def _predict_flow(args):
+    """加载导出工件 → 清洗/特征工程（transform）→ pipeline 预测 → 输出 predictions.csv"""
+    from joblib import load as joblib_load
+
+    # 1) 定位导出文件
+    run_dir = Path(args.run_dir) if args.run_dir else None
+    pipe_path = Path(args.load_pipeline) if args.load_pipeline else (run_dir / "pipeline.joblib" if run_dir else None)
+    if not pipe_path or not pipe_path.exists():
+        raise SystemExit("预测模式需要 --load-pipeline 或 --run-dir（且其中包含 pipeline.joblib）")
+
+    clean_path = (run_dir / "clean_config.json") if run_dir else None
+    feat_builder_path = (run_dir / "feature_builder.joblib") if run_dir else None
+    feat_cfg_path = (run_dir / "features_config.json") if run_dir else None
+
+    # 2) 读入数据
+    csv_in = args.input_csv or args.csv
+    if not csv_in:
+        raise SystemExit("预测模式需要 --input-csv 或 --csv 提供待预测数据")
+    df = pd.read_csv(csv_in)
+
+    # 2.1 避免把目标列带进特征
+    if getattr(args, "target", None) and args.target in df.columns:
+        df = df.drop(columns=[args.target])
+
+    # 3) 还原清洗
+    if clean_path and clean_path.exists():
+        try:
+            clean_cfg = load_json_or_yaml(f"@{clean_path}")
+            df = _apply_cleaning_with_log(df, clean_cfg, target=getattr(args, "target", None))
+        except Exception as e:
+            print(f"[warn] 应用清洗配置失败，跳过清洗：{e}")
+
+    # 4) 还原特征工程（优先用已拟合 builder）
+    used_feat = False
+    if feat_builder_path and feat_builder_path.exists():
+        try:
+            builder = joblib_load(feat_builder_path)
+            df = builder.transform(df)
+            print("已用导出的 feature_builder.joblib 完成推理 transform。")
+            used_feat = True
+        except Exception as e:
+            print(f"[warn] 加载/应用 feature_builder.joblib 失败：{e}")
+    elif feat_cfg_path and feat_cfg_path.exists():
+        try:
+            feat_cfg = load_json_or_yaml(f"@{feat_cfg_path}")
+            fb = FeatureBuilder(feat_cfg, log_fn=print)
+            # 注意：无拟合态的 transform 仅适用于不依赖统计量的操作（如多项式、交互项）
+            df = fb.transform(df)
+            print("已用 features_config.json 做无拟合态 transform（若需分箱/频次编码，建议使用 builder.joblib）。")
+            used_feat = True
+        except Exception as e:
+            print(f"[warn] 仅凭 features_config.json 恢复特征失败：{e}")
+
+    if not used_feat:
+        print("[info] 未进行特征工程 transform（可能训练时未配置特征工程）。")
+
+    # 5) 加载 pipeline & 预测
+    pipe = joblib_load(pipe_path)
+    is_classifier = hasattr(pipe, "predict_proba")
+
+    if is_classifier and args.proba:
+        y_prob = pipe.predict_proba(df)
+        if y_prob.ndim == 2 and y_prob.shape[1] == 2:
+            y_hat = (y_prob[:, 1] >= args.threshold).astype(int)
+            out = pd.DataFrame({"y_pred": y_hat, "y_proba": y_prob[:, 1]})
+        else:
+            y_hat = y_prob.argmax(axis=1)
+            proba_cols = {f"proba_{i}": y_prob[:, i] for i in range(y_prob.shape[1])}
+            out = pd.DataFrame({"y_pred": y_hat, **proba_cols})
+    else:
+        y_hat = pipe.predict(df)
+        out = pd.DataFrame({"y_pred": y_hat})
+
+    # 附带 id 列
+    if args.id_col and args.id_col in df.columns:
+        out.insert(0, args.id_col, df[args.id_col].values)
+
+    # 6) 导出
+    out_path = (
+        Path(args.out_pred)
+        if args.out_pred else
+        (run_dir / "predictions.csv" if run_dir else Path("predictions.csv"))
+    )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out.to_csv(out_path, index=False)
+    print(f"✅ 预测完成，已保存到 {out_path.resolve()}  (前几行预览)")
+    try:
+        print(out.head(10).to_string(index=False))
+    except Exception:
+        pass
+
+
 def main():
     ap = argparse.ArgumentParser(description="Algolab ML Runner（自动/指定任务，CV 搜索，带清洗日志）")
     ap.add_argument("--csv", help="训练数据 CSV 路径")
@@ -321,6 +399,15 @@ def main():
     ap.add_argument("--export", action="store_true", help="保存模型与报告到 --out-dir（未指定则 runs/时间戳）")
     ap.add_argument("--out-dir", default=None, help="保存目录（默认 runs/YYYYmmdd-HHMMSS）")
     ap.add_argument("--params", default=None, help="模型超参数，JSON 或 'k=v,k2=v2' 或 @/path/params.json")
+    # 预测模式
+    ap.add_argument("--predict", action="store_true", help="进入预测模式（不训练）")
+    ap.add_argument("--run-dir", default=None, help="训练导出目录（含 pipeline.joblib / clean_config.json / feature_builder.joblib）")
+    ap.add_argument("--load-pipeline", default=None, help="直接指定 pipeline.joblib 路径（优先于 --run-dir）")
+    ap.add_argument("--input-csv", default=None, help="用于预测的 CSV（默认用 --csv）")
+    ap.add_argument("--id-col", default=None, help="标识列名（若提供，将出现在输出里）")
+    ap.add_argument("--proba", action="store_true", help="分类任务输出概率（同时输出 y_pred 与 y_proba）")
+    ap.add_argument("--threshold", type=float, default=0.5, help="二分类阈值（配合 --proba 使用；默认 0.5）")
+    ap.add_argument("--out-pred", default=None, help="预测结果输出路径（默认 <run-dir>/predictions.csv 或 ./predictions.csv）")
     # 发现性
     ap.add_argument("--list-models", action="store_true", help="列出可用模型与别名")
     ap.add_argument("--format", choices=["json","text"], default="json", help="list 输出格式")
@@ -333,6 +420,12 @@ def main():
         _print_list_models(args.format, args.task_scope); return
     if args.show_params:
         _print_params(args.show_params); return
+
+    # —— 预测模式：直接走推理流程后返回 ——
+    if args.predict:
+        _predict_flow(args)
+        return
+
     if not args.csv or not args.target:
         raise SystemExit("缺少 --csv / --target。也可以先用 --list-models 或 --show-params。")
 
@@ -372,6 +465,7 @@ def main():
         out_dir = Path(args.out_dir) if args.out_dir else make_run_dir(Path("runs"))
         out_dir.mkdir(parents=True, exist_ok=True)
         dump_joblib(out_dir / "pipeline.joblib", pipe)
+
         report_to_save = {k: v for k, v in report.items() if not k.startswith("_")}
         _save_json(out_dir / "metrics.json", report_to_save)
         _save_json(out_dir / "columns.json", {"target": args.target, "all_columns": df.columns.tolist()})
@@ -383,6 +477,13 @@ def main():
             except Exception:
                 feat_conf_to_save = feat_cfg
             _save_json(out_dir / "features_config.json", feat_conf_to_save)
+
+        # 额外导出：已拟合的特征工程器（推理时 transform 要用）
+        try:
+            if "builder" in locals() and builder is not None:
+                dump_joblib(out_dir / "feature_builder.joblib", builder)
+        except Exception:
+            pass
 
         # 可用就画图（仅分类二分类可画 ROC/PR）
         try:
@@ -396,7 +497,6 @@ def main():
 
         # 特征重要性
         try:
-            # 从最终管道里拿特征名（若预处理使用 OneHot，会返回展开列名）
             feature_names = getattr(pipe, "feature_names_in_", None)
             plot_feature_importance(pipe, feature_names, out_dir, top_n=30)
         except Exception:
@@ -409,6 +509,7 @@ def main():
             pass
 
         print(f"📦 训练工件已导出到: {out_dir.resolve()}")
+
 
 if __name__ == "__main__":
     main()
