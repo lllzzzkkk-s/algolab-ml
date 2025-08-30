@@ -1,117 +1,100 @@
-# algolab_ml/models/train.py
 from __future__ import annotations
 from typing import Dict, Tuple, Optional
 import pandas as pd
-import numpy as np
-
-from sklearn.model_selection import train_test_split
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.pipeline import Pipeline
-from sklearn.metrics import (
-    accuracy_score, f1_score, roc_auc_score,
-    r2_score, mean_squared_error, classification_report
-)
+from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV
 
 from .model_zoo import get_model
-from ..features.transform import build_tabular_preprocess
+from ..utils.metrics import (
+    infer_task_from_target, classification_report_dict, regression_report_dict
+)
+from .param_spaces import default_param_grid
 
-
-def train_test_split_df(df: pd.DataFrame, target: str, test_size=0.2, random_state=42):
+def build_tabular_preprocess(df: pd.DataFrame, target: str, enable: bool=True):
+    if not enable:
+        return "passthrough", []
     X = df.drop(columns=[target])
-    y = df[target]
-    # 如果很可能是分类，就分层切分
-    stratify = y if _is_likely_classification(y) else None
-    return train_test_split(X, y, test_size=test_size, random_state=random_state, stratify=stratify)
-
-
-def _is_likely_classification(y: pd.Series, max_classes: int = 20) -> bool:
-    """用于 stratify 的粗判：‘看起来像分类’就返回 True。"""
-    if pd.api.types.is_object_dtype(y) or pd.api.types.is_categorical_dtype(y):
-        return True
-    u = pd.unique(y.dropna())
-    if len(u) == 2:
-        return True
-    if pd.api.types.is_integer_dtype(y) and y.nunique() <= max_classes:
-        return True
-    if pd.api.types.is_float_dtype(y):
-        ints_like = all(float(v).is_integer() for v in u if pd.notna(v))
-        if ints_like and y.nunique() <= max_classes:
-            return True
-    return False
-
-
-def _task_from_target(y: pd.Series) -> str:
-    """自动判定任务类型：二值/少类别/离散 → classification；其余 → regression。"""
-    if pd.api.types.is_object_dtype(y) or pd.api.types.is_categorical_dtype(y):
-        return "classification"
-    u = pd.unique(y.dropna())
-    if len(u) == 2:
-        return "classification"
-    if pd.api.types.is_integer_dtype(y) and y.nunique() <= 20:
-        return "classification"
-    if pd.api.types.is_float_dtype(y):
-        ints_like = all(float(v).is_integer() for v in u if pd.notna(v))
-        if ints_like and y.nunique() <= 20:
-            return "classification"
-    return "regression"
-
+    num_cols = X.select_dtypes(include=["number"]).columns.tolist()
+    cat_cols = [c for c in X.columns if c not in num_cols]
+    num_tf = Pipeline([("scaler", StandardScaler(with_mean=False))])
+    cat_tf = Pipeline([("ohe", OneHotEncoder(handle_unknown="ignore", sparse_output=True))])
+    pre = ColumnTransformer(
+        transformers=[("num", num_tf, num_cols), ("cat", cat_tf, cat_cols)],
+        remainder="drop",
+        sparse_threshold=0.3,
+    )
+    return pre, num_cols + cat_cols
 
 def fit_tabular(
     df: pd.DataFrame,
     target: str,
     model_name: str,
-    test_size: float = 0.2,
-    random_state: int = 42,
-    preprocess: bool = True,
-    model_params: Dict | None = None,
-    task_override: Optional[str] = None,
+    test_size: float=0.2,
+    random_state: int=42,
+    preprocess: bool=True,
+    task_override: Optional[str]=None,
+    model_params: Optional[Dict]=None,
+    cv: Optional[int]=None,
+    scoring: Optional[str]=None,
+    search: Optional[str]=None,            # "grid" | "random" | None
+    param_grid: Optional[Dict]=None,
+    n_iter: int=20
 ) -> Tuple[Pipeline, Dict]:
-    """训练入口：自动/指定任务 + 评估 + 返回 (pipeline, report)。"""
-    Xtr, Xte, ytr, yte = train_test_split_df(df, target, test_size=test_size, random_state=random_state)
+    # 1) 任务识别（自动/强制）
+    y = df[target]
+    task = task_override or infer_task_from_target(y)
 
-    # 任务选择：优先用覆盖，其次自动判定
-    task = task_override if task_override in ("classification", "regression") else _task_from_target(ytr)
+    # 2) 预处理 + 模型
+    pre, _ = build_tabular_preprocess(df, target, enable=preprocess)
+    model = get_model(model_name, task=task, **(model_params or {}))
+    pipe = Pipeline([("prep", pre), ("model", model)])
 
-    # 只在构造模型时解包参数
-    params = model_params or {}
-    model = get_model(model_name, task=task, **params)
+    # 3) 切分
+    X = df.drop(columns=[target])
+    strat = y if task == "classification" else None
+    Xtr, Xte, ytr, yte = train_test_split(
+        X, y, test_size=test_size, random_state=random_state, stratify=strat
+    )
 
-    # 组装 pipeline
-    if preprocess:
-        pre = build_tabular_preprocess(Xtr)
-        pipe = Pipeline([("pre", pre), ("model", model)])
-    else:
-        pipe = Pipeline([("model", model)])
-
-    # 训练（不要把 model_params 再传给 fit）
-    pipe.fit(Xtr, ytr)
-
-    # 评估
-    report: Dict = {"task": task}
-    if task == "classification":
-        ypred = pipe.predict(Xte)
-        report["accuracy"] = float(accuracy_score(yte, ypred))
-        report["f1_macro"] = float(f1_score(yte, ypred, average="macro"))
-        # AUC（支持二分类 / 多分类OvR）
-        proba = getattr(pipe, "predict_proba", None)
-        if callable(proba):
-            p = pipe.predict_proba(Xte)
-            if p.ndim == 2 and p.shape[1] == 2:
-                report["roc_auc"] = float(roc_auc_score(yte, p[:, 1]))
+    # 4) CV / 搜索（只把参数网格给 model__*）
+    estimator = pipe
+    if cv and (search in ("grid", "random") or param_grid):
+        grid = param_grid or default_param_grid(model_name, task)
+        if grid:
+            if search == "random":
+                estimator = RandomizedSearchCV(
+                    pipe, grid, n_iter=n_iter, cv=cv, scoring=scoring,
+                    n_jobs=1, verbose=0, random_state=random_state
+                )
             else:
-                try:
-                    report["roc_auc_ovr_macro"] = float(
-                        roc_auc_score(yte, p, multi_class="ovr", average="macro")
-                    )
-                except Exception:
-                    pass
-        # 可读报告
-        try:
-            report["classification_report"] = classification_report(yte, ypred, output_dict=True)
-        except Exception:
-            pass
-    else:
-        ypred = pipe.predict(Xte)
-        report["rmse"] = float(mean_squared_error(yte, ypred, squared=False))
-        report["r2"] = float(r2_score(yte, ypred))
+                estimator = GridSearchCV(
+                    pipe, grid, cv=cv, scoring=scoring, n_jobs=1, verbose=0
+                )
 
-    return pipe, report
+    # 5) 训练（这里 **不要** 传入 model_params 以外的任何 dict）
+    estimator.fit(Xtr, ytr)
+
+    # 6) 评估
+    if task == "classification":
+        y_pred = estimator.predict(Xte)
+        y_proba = None
+        if hasattr(estimator, "predict_proba"):
+            proba = estimator.predict_proba(Xte)
+            y_proba = proba[:, 1] if proba.ndim == 2 and proba.shape[1] == 2 else proba
+        report = classification_report_dict(yte, y_pred, y_proba)
+    else:
+        y_pred = estimator.predict(Xte)
+        report = regression_report_dict(yte, y_pred)
+
+    # 7) 若做了搜索，附带最优参数
+    if hasattr(estimator, "best_params_"):
+        report["search"] = {
+            "best_params": estimator.best_params_,
+            "scoring": scoring,
+            "cv": cv,
+            "search": search or "grid",
+        }
+
+    return estimator, report

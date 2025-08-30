@@ -13,6 +13,11 @@ def run_df(
     preprocess: bool = True,
     model_params: Dict | None = None,
     task: Optional[str] = None,
+    cv: int | None = None,
+    scoring: str | None = None,
+    search: str | None = None,
+    param_grid: Dict | None = None,
+    n_iter: int = 20,
 ) -> Tuple[object, dict]:
     return fit_tabular(
         df,
@@ -23,8 +28,12 @@ def run_df(
         preprocess=preprocess,
         model_params=model_params or {},
         task_override=task,
+        cv=cv,
+        scoring=scoring,
+        search=search if search not in (None, "none") else None,
+        param_grid=param_grid,
+        n_iter=n_iter,
     )
-
 
 def run(
     csv_path: str,
@@ -35,6 +44,11 @@ def run(
     preprocess: bool = True,
     model_params: Dict | None = None,
     task: Optional[str] = None,
+    cv: int | None = None,
+    scoring: str | None = None,
+    search: str | None = None,
+    param_grid: Dict | None = None,
+    n_iter: int = 20,
 ) -> Tuple[object, dict]:
     df = pd.read_csv(csv_path)
     return run_df(
@@ -46,4 +60,9 @@ def run(
         preprocess=preprocess,
         model_params=model_params,
         task=task,
+        cv=cv,
+        scoring=scoring,
+        search=search,
+        param_grid=param_grid,
+        n_iter=n_iter,
     )
