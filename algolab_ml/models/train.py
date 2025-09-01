@@ -14,6 +14,25 @@ from sklearn.metrics import (
 
 from .model_zoo import get_model
 
+# —— 针对一些完美分数的提醒
+def _maybe_add_perfect_score_warning(report: dict):
+    """当分类任务的分数“接近 1.0”时，统一加一个温和的提示。"""
+    if report.get("task") != "classification":
+        return
+    keys = ("accuracy", "f1_macro", "roc_auc", "best_score")
+    hits = []
+    for k in keys:
+        v = report.get(k)
+        try:
+            if v is not None and float(v) >= 0.9999:  # 宽松阈值，避免浮点误差
+                hits.append(f"{k}={v}")
+        except Exception:
+            pass
+    if hits:
+        report["warning_perfect_score"] = (
+            "训练/验证得分接近 1.0，请留意是否过拟合或数据泄漏（也可能是数据可分性极强的演示集）。"
+            f" 命中指标：{', '.join(hits)}"
+        )
 
 # —— 简单任务自动识别
 def _infer_task(y: pd.Series) -> str:
@@ -163,7 +182,15 @@ def fit_tabular(
 
         searcher.fit(Xtr, ytr)
         best_pipe = searcher.best_estimator_
+        # ✅ 把 CV 产物挂到 best_estimator_ 上，供导出阶段 save_cv_results 使用
+        try:
+            setattr(best_pipe, "cv_results_", searcher.cv_results_)
+            setattr(best_pipe, "best_params_", searcher.best_params_)
+            setattr(best_pipe, "best_score_", searcher.best_score_)
+        except Exception:
+            pass
         yhat = best_pipe.predict(Xte)
+        report["_y_pred"] = yhat.tolist()
 
         if task == "classification":
             yprob = None
@@ -182,11 +209,12 @@ def fit_tabular(
                 report["roc_auc"] = float(roc_auc_score(yte, yprob))
             report["classification_report"] = classification_report(yte, yhat, output_dict=True)
             report["_y_true"], report["_y_prob"] = yte.tolist(), (yprob.tolist() if yprob is not None else None)
+            report["_y_pred"] = yhat.tolist()
         else:
             rmse = float(mean_squared_error(yte, yhat, squared=False))
             r2 = float(r2_score(yte, yhat))
             report.update({"rmse": rmse, "r2": r2})
-
+        _maybe_add_perfect_score_warning(report)
         return best_pipe, {
             **report,
             "cv": True,
@@ -242,6 +270,7 @@ def fit_tabular(
 
         # 推理
         yhat = clf.predict(Xte_t)
+        report["_y_pred"] = yhat.tolist()
         yprob = None
         if task == "classification":
             try:
@@ -262,6 +291,7 @@ def fit_tabular(
                 report["roc_auc"] = float(roc_auc_score(yte, yprob))
             report["classification_report"] = classification_report(yte, yhat, output_dict=True)
             report["_y_true"], report["_y_prob"] = yte.tolist(), (yprob.tolist() if yprob is not None else None)
+            report["_y_pred"] = yhat.tolist()
         else:
             rmse = float(mean_squared_error(yte, yhat, squared=False))
             r2 = float(r2_score(yte, yhat))
@@ -304,7 +334,7 @@ def fit_tabular(
         # 过拟合/异常提示（可选）
         if report.get("roc_auc") == 1.0 or report.get("accuracy") == 1.0:
             report["warning_perfect_score"] = "训练/验证得分为 1.0，请留意是否过拟合或数据泄漏（也可能是数据可分性极强的演示集）。"
-
+        _maybe_add_perfect_score_warning(report)
         return pipe, report
 
     # ============ 普通训练（无早停） ============
@@ -312,6 +342,7 @@ def fit_tabular(
     pipe.fit(Xtr, ytr)
 
     yhat = pipe.predict(Xte)
+    report["_y_pred"] = yhat.tolist()
     if task == "classification":
         yprob = None
         try:
@@ -329,6 +360,7 @@ def fit_tabular(
             report["roc_auc"] = float(roc_auc_score(yte, yprob))
         report["classification_report"] = classification_report(yte, yhat, output_dict=True)
         report["_y_true"], report["_y_prob"] = yte.tolist(), (yprob.tolist() if yprob is not None else None)
+        report["_y_pred"] = yhat.tolist()
     else:
         rmse = float(mean_squared_error(yte, yhat, squared=False))
         r2 = float(r2_score(yte, yhat))
@@ -336,5 +368,5 @@ def fit_tabular(
 
     if report.get("roc_auc") == 1.0 or report.get("accuracy") == 1.0:
         report["warning_perfect_score"] = "训练/验证得分为 1.0，请留意是否过拟合或数据泄漏（也可能是数据可分性极强的演示集）。"
-
+    _maybe_add_perfect_score_warning(report)
     return pipe, report

@@ -11,7 +11,6 @@ import pandas as pd
 # --- JSON 序列化兜底：numpy/pandas → 纯 Python ---
 def _json_default(o):
     import numpy as np
-    import pandas as pd
     # NumPy: 标量 & 数组
     if isinstance(o, np.generic):
         return o.item()
@@ -86,12 +85,33 @@ try:
         plot_feature_importance,
         save_cv_results,
         plot_learning_curve,
+        plot_confusion_matrix,   # ← 新增
     )
 except Exception:
     def plot_roc_pr_curves(*args, **kwargs): pass
     def plot_feature_importance(*args, **kwargs): pass
     def save_cv_results(*args, **kwargs): pass
     def plot_learning_curve(*args, **kwargs): pass
+    # 兜底的混淆矩阵实现（不依赖包内工具）
+    def plot_confusion_matrix(y_true, y_pred, out_dir, labels=None):
+        from pathlib import Path
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+        out_dir = Path(out_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        y_true = np.asarray(y_true)
+        y_pred = np.asarray(y_pred)
+        if labels is None:
+            labels = np.unique(np.concatenate([y_true, y_pred]))
+        cm = confusion_matrix(y_true, y_pred, labels=labels)
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
+        fig, ax = plt.subplots(figsize=(4, 4))
+        disp.plot(ax=ax, values_format="d", colorbar=False)
+        ax.set_title("Confusion Matrix")
+        fig.tight_layout()
+        fig.savefig(out_dir / "confusion_matrix.png", dpi=160)
+        plt.close(fig)
 
 
 # ----------------- 日志工具 -----------------
@@ -289,8 +309,60 @@ def _apply_cleaning_with_log(df: pd.DataFrame, cfg: dict, target: str | None = N
     _print_df_shape(cur, "最终数据维度")
     return cur
 
+def _export_confusion_matrix(y_true, y_pred, out_dir):
+    """保存混淆矩阵（计数 & 行归一化）到 out_dir。
+    支持多分类。不会依赖包内 utils，纯 sklearn + matplotlib。
+    """
+    from pathlib import Path
+    import numpy as np
+    import matplotlib
+    matplotlib.use("Agg")  # 纯文件输出，避免 GUI 依赖
+    import matplotlib.pyplot as plt
+    from sklearn.metrics import confusion_matrix
+    import itertools
 
-# ----------------- 预测/打分（训练后或纯预测模式通用） -----------------
+    y_true = np.asarray(y_true)
+    y_pred = np.asarray(y_pred)
+    labels = np.unique(np.concatenate([y_true, y_pred], axis=0))
+    cm = confusion_matrix(y_true, y_pred, labels=labels)
+
+    def _plot_and_save(matrix, labels, title, filename, fmt="d", norm=False):
+        fig, ax = plt.subplots(figsize=(6, 5), dpi=150)
+        im = ax.imshow(matrix, interpolation="nearest", cmap="Blues")
+        ax.figure.colorbar(im, ax=ax)
+        ax.set(
+            xticks=np.arange(len(labels)),
+            yticks=np.arange(len(labels)),
+            xticklabels=labels,
+            yticklabels=labels,
+            ylabel="True label",
+            xlabel="Predicted label",
+            title=title,
+        )
+        # 网格 + 标注
+        ax.set_ylim(len(labels)-0.5, -0.5)
+        thresh = matrix.max() / 2.0 if matrix.size > 0 else 0.5
+        for i, j in itertools.product(range(matrix.shape[0]), range(matrix.shape[1])):
+            ax.text(
+                j, i, format(matrix[i, j], fmt),
+                ha="center", va="center",
+                color="white" if matrix[i, j] > thresh else "black",
+            )
+        fig.tight_layout()
+        p = Path(out_dir) / filename
+        fig.savefig(p, bbox_inches="tight")
+        plt.close(fig)
+        print(f"✅ 已保存混淆矩阵: {p.resolve()}")
+
+    # 原始计数
+    _plot_and_save(cm, labels, "Confusion Matrix", "confusion_matrix.png", fmt="d", norm=False)
+
+    # 行归一化
+    with np.errstate(divide="ignore", invalid="ignore"):
+        row_sum = cm.sum(axis=1, keepdims=True)
+        row_sum[row_sum == 0] = 1
+        cm_norm = cm.astype("float") / row_sum
+    _plot_and_save(cm_norm, labels, "Confusion Matrix (Normalized)", "confusion_matrix_norm.png", fmt=".2f", norm=True)
 # ----------------- 预测/打分（训练后或纯预测模式通用） -----------------
 def _run_predict(
     pipe,
@@ -563,16 +635,19 @@ def main():
         out_dir = Path(args.out_dir) if args.out_dir else make_run_dir(Path("runs"))
         out_dir.mkdir(parents=True, exist_ok=True)
         dump_joblib(out_dir / "pipeline.joblib", pipe)
+
         report_to_save = {k: v for k, v in report.items() if not str(k).startswith("_")}
         _save_json(out_dir / "metrics.json", report_to_save)
         _save_json(out_dir / "columns.json", {"target": args.target, "all_columns": df.columns.tolist()})
         _save_json(out_dir / "versions.json", versions_summary())
-        if clean_cfg: _save_json(out_dir / "clean_config.json", clean_cfg)
+        if clean_cfg:
+            _save_json(out_dir / "clean_config.json", clean_cfg)
         if builder is not None:
             try:
                 _save_json(out_dir / "features_config.json", builder.to_dict())
             except Exception:
-                if feat_cfg: _save_json(out_dir / "features_config.json", feat_cfg)
+                if feat_cfg:
+                    _save_json(out_dir / "features_config.json", feat_cfg)
 
         # 曲线与可视化（不重复打印“已保存”文案，避免重复日志）
         try:
@@ -589,6 +664,7 @@ def main():
             # CV 结果（在做过 Grid/RandomSearch 时有效）
             save_cv_results(pipe, out_dir)
         except Exception:
+            # 静默继续，下面有兜底写盘
             pass
         try:
             # 学习曲线（早停训练）
@@ -597,6 +673,30 @@ def main():
                 plot_learning_curve(ev, out_dir, metric_hint=args.eval_metric, task=report.get("task"))
         except Exception:
             pass
+        try:
+            # 混淆矩阵（分类任务；需要 _y_true 和 _y_pred）
+            if report.get("task") == "classification":
+                y_true = report.get("_y_true")
+                y_pred = report.get("_y_pred")
+                if y_true is not None and y_pred is not None:
+                    _export_confusion_matrix(y_true, y_pred, out_dir)
+        except Exception as e:
+            print(f"⚠️ 混淆矩阵生成失败：{e}")
+
+        # ✅ 兜底：若 pipe 挂有 CV 产物，则直接保存到文件
+        try:
+            cvd = getattr(pipe, "cv_results_", None)
+            if cvd:
+                cv_path = out_dir / "cv_results.csv"
+                pd.DataFrame(cvd).to_csv(cv_path, index=False)
+                print(f"✅ 已保存 CV 结果到: {cv_path.resolve()}")
+            best_params = getattr(pipe, "best_params_", None) or report_to_save.get("best_params")
+            best_score  = getattr(pipe, "best_score_",  None) or report_to_save.get("best_score")
+            if best_params is not None or best_score is not None:
+                _save_json(out_dir / "cv_best.json", {"best_params": best_params, "best_score": best_score})
+                print(f"✅ 已保存 CV 最优快照到: {(out_dir / 'cv_best.json').resolve()}")
+        except Exception as e:
+            print(f"⚠️ CV 结果保存失败：{e}")
 
         print(f"📦 训练工件已导出到: {out_dir.resolve()}")
 

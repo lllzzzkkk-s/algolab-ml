@@ -1,10 +1,10 @@
 # algolab_ml/features/builder.py
 from __future__ import annotations
 import re
-import json
 from typing import Any, Dict, List
 import numpy as np
 import pandas as pd
+
 
 def _slug(s: Any) -> str:
     s = str(s)
@@ -12,15 +12,15 @@ def _slug(s: Any) -> str:
     s = re.sub(r"[^0-9a-zA-Z_.-]", "_", s)
     return s
 
+
 class FeatureBuilder:
     """
-    统一的特征构建器（最小可用实现）：
-    - 支持 target_mean（目标均值编码，OOF 防泄漏 + 推理映射）
-      * 回归：单列编码
-      * 二分类：单列编码（P(y=正类|x) 的平滑均值）
-      * 多分类：多列编码（每个类一列：P(y=c|x) 的平滑均值）
+    统一的特征构建器（包含：
+      - target_mean（OOF 防泄漏，支持回归/二分类/多分类）
+      - text_tfidf（按列独立的 TF-IDF，训练落盘 vocab+idf，预测复现）
+    ）
 
-    cfg 结构（示例）：
+    cfg 结构示例：
     {
       "target_mean": {
         "cols": ["city","brand"],
@@ -29,45 +29,52 @@ class FeatureBuilder:
         "n_splits": 5,
         "random_state": 42,
         "suffix": "__tmean"
+      },
+      "text_tfidf": {
+        "cols": ["comment"],
+        "ngram_range": [1,2],
+        "max_features": 200,
+        "analyzer": "word",
+        "lowercase": true,
+        "min_df": 1,
+        "max_df": 1.0,
+        "stop_words": null,
+        "norm": "l2",
+        "sublinear_tf": false,
+        "prefix": null
       }
     }
 
     持久化：
-    - to_dict() 会保存 {"config": cfg, "created": [...], "state": {...}}
-    - __init__ 支持传入 {"config":..., "state":...} 或仅 cfg
-    - 这样纯预测 (--run-dir) 阶段可直接 transform 使用训练期映射
+    - to_dict() 保存 {"config": cfg, "created": [...], "state": {"tmean": ..., "tfidf": ...}}
+    - 纯预测 (--run-dir) 阶段可直接 transform 使用训练期映射/词表
     """
+
     def __init__(self, cfg_or_bundle: Dict | None = None, log_fn=print):
         cfg_or_bundle = cfg_or_bundle or {}
         if "config" in cfg_or_bundle or "state" in cfg_or_bundle:
             self.cfg: Dict = cfg_or_bundle.get("config", {})
-            state = cfg_or_bundle.get("state", {})
+            saved_state = cfg_or_bundle.get("state", {})
         else:
             self.cfg = cfg_or_bundle
-            state = {}
+            saved_state = {}
 
         self.log = log_fn
         self.created_: List[str] = []
-        # state_ 结构：
-        # {
-        #   "tmean": {
-        #       "_meta": {...},
-        #       "<col>": {
-        #           "mode": "regression"|"binary"|"multiclass",
-        #           "mapping": Series 或 DataFrame（index=类别；列=类标签（多分类）或单列）或其 dict 形式,
-        #           "classes": [仅多分类，类标签列表],
-        #           "global": float 或 {cls: float},
-        #           "alpha": int
-        #       },
-        #       ...
-        #   }
-        # }
-        self.state_: Dict = {"tmean": {}}
-        # 恢复 state（兼容 dict 形式）
-        tmean_saved = state.get("tmean", {})
+
+        # 统一状态容器
+        self.state_: Dict = {
+            "tmean": {},
+            "tfidf": {},  # {<col>: {"params": {...}, "vocabulary": {...}, "idf": [...], "feature_tokens": [...]} }
+        }
+
+        # ---------- 恢复 target_mean ----------
+        tmean_saved = saved_state.get("tmean", {})
         if tmean_saved:
             meta = tmean_saved.get("_meta", {})
-            self.state_["tmean"]["_meta"] = meta
+            if meta:
+                self.state_["tmean"]["_meta"] = meta
+
             for k, pack in tmean_saved.items():
                 if k == "_meta":
                     continue
@@ -78,7 +85,7 @@ class FeatureBuilder:
                     mapping_df = pd.DataFrame.from_dict(mp, orient="index")
                     classes = pack.get("classes", list(mapping_df.columns))
 
-                    # —— 列名类型对齐：若 classes 是 [0.0,1.0] 而列名是 ["0.0","1.0"]，做一次重命名
+                    # 列名类型对齐（兼容 JSON 导致的 str/int 漂移）
                     rename_map = {}
                     for c in classes:
                         if c not in mapping_df.columns and str(c) in mapping_df.columns:
@@ -86,17 +93,15 @@ class FeatureBuilder:
                     if rename_map:
                         mapping_df = mapping_df.rename(columns=rename_map)
 
-                    # —— 若还有缺失列（某些类训练时没出现），补齐空列，后续 transform 用全局均值兜底
+                    # 缺失列补齐
                     for c in classes:
                         if c not in mapping_df.columns:
                             mapping_df[c] = np.nan
-
-                    # —— 固定列顺序为 classes
                     mapping_df = mapping_df[classes]
 
                     self.state_["tmean"][k] = {
                         "mode": "multiclass",
-                        "mapping": mapping_df,
+                        "mapping": mapping_df.astype("float64"),
                         "classes": classes,
                         "global": pack.get("global", {}),
                         "alpha": pack.get("alpha", meta.get("alpha", 10)),
@@ -109,33 +114,64 @@ class FeatureBuilder:
                         "mode": mode,
                         "mapping": mapping_sr,
                         "global": pack.get("global", np.nan),
-                        "alpha": pack.get("alpha", meta.get("alpha", 10)),
+                        "alpha": pack.get("alpha", tmean_saved.get("_meta", {}).get("alpha", 10)),
                     }
+
+        # ---------- 恢复 tfidf ----------
+        tfidf_saved = saved_state.get("tfidf", {})
+        if tfidf_saved:
+            # 直接放入（内部均为 JSON 基本类型）
+            for col, pack in tfidf_saved.items():
+                if not isinstance(pack, dict):
+                    continue
+                self.state_["tfidf"][col] = {
+                    "params": pack.get("params", {}),
+                    "vocabulary": pack.get("vocabulary", {}),
+                    "idf": list(pack.get("idf", [])),
+                    "feature_tokens": list(pack.get("feature_tokens", [])),
+                }
 
     # ---------------- 公共 API ----------------
     def fit_transform(self, df: pd.DataFrame, target_col: str | None = None) -> pd.DataFrame:
         out = df.copy()
+
+        # 1) 目标均值编码（依赖 target）
         if isinstance(self.cfg.get("target_mean"), dict) and self.cfg["target_mean"].get("cols"):
             out = self._fit_transform_target_mean(out, target_col, self.cfg["target_mean"])
+
+        # 2) 文本 TF-IDF
+        cfg_tfidf = self.cfg.get("text_tfidf")
+        if isinstance(cfg_tfidf, dict) and cfg_tfidf.get("cols"):
+            out = self._fit_transform_text_tfidf(out, cfg_tfidf)
+
         return out
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         out = df.copy()
-        if self.state_["tmean"]:
+
+        # 1) 目标均值编码（使用 state）
+        if self.state_.get("tmean"):
             out = self._transform_target_mean(out)
+
+        # 2) 文本 TF-IDF（使用落盘 vocab+idf）
+        cfg_tfidf = self.cfg.get("text_tfidf", {})
+        # 若 cfg 中没写，但 state 里有，我们也能恢复（取 state 的列清单）
+        if self.state_.get("tfidf"):
+            out = self._transform_text_tfidf(out, cfg_tfidf if isinstance(cfg_tfidf, dict) else {})
+
         return out
 
     def to_dict(self) -> dict:
-        # 将 pandas 对象转为基本类型，便于 JSON 保存
-        tmean = {}
+        # ------ tmean 序列化 ------
+        tmean_out = {}
         for col, pack in self.state_["tmean"].items():
             if col == "_meta":
-                tmean[col] = pack
+                tmean_out[col] = pack
                 continue
             mode = pack.get("mode", "regression")
             if mode == "multiclass":
                 mapping_df: pd.DataFrame = pack["mapping"]
-                tmean[col] = {
+                tmean_out[col] = {
                     "mode": "multiclass",
                     "mapping": mapping_df.to_dict(orient="index"),  # {category: {cls: val}}
                     "classes": list(pack.get("classes", mapping_df.columns)),
@@ -144,20 +180,31 @@ class FeatureBuilder:
                 }
             else:
                 mapping_sr: pd.Series = pack["mapping"]
-                tmean[col] = {
+                tmean_out[col] = {
                     "mode": mode,
                     "mapping": {k: float(v) for k, v in mapping_sr.to_dict().items()},
                     "global": float(pack.get("global", np.nan)),
                     "alpha": int(pack.get("alpha", 10)),
                 }
+
+        # ------ tfidf 序列化 ------
+        tfidf_out = {}
+        for col, pack in self.state_["tfidf"].items():
+            tfidf_out[col] = {
+                "params": dict(pack.get("params", {})),
+                "vocabulary": dict(pack.get("vocabulary", {})),
+                "idf": [float(x) for x in pack.get("idf", [])],
+                "feature_tokens": list(pack.get("feature_tokens", [])),
+            }
+
         bundle = {
             "config": self.cfg,
             "created": list(self.created_),
-            "state": {"tmean": tmean},
+            "state": {"tmean": tmean_out, "tfidf": tfidf_out},
         }
         return bundle
 
-    # ---------------- TME：实现 ----------------
+    # ---------------- 目标均值编码：实现 ----------------
     def _fit_transform_target_mean(self, df: pd.DataFrame, target_col: str | None, cfg: dict) -> pd.DataFrame:
         if target_col is None or target_col not in df.columns:
             self.log("⚠️ target_mean: 未提供 target_col，跳过。")
@@ -193,15 +240,11 @@ class FeatureBuilder:
             global_mean = float(pd.to_numeric(y, errors="coerce").mean())
         else:
             classes = list(pd.Series(y).dropna().unique())
-            # 稳定顺序（可读性）
             try:
                 classes = sorted(classes)
             except Exception:
                 pass
-            # 每个类的全局频率
-            global_mean = {}
-            for c in classes:
-                global_mean[c] = float((y == c).mean())
+            global_mean = {c: float((y == c).mean()) for c in classes}
 
         self.state_["tmean"]["_meta"] = {
             "alpha": alpha, "n_splits": n_splits, "random_state": random_state,
@@ -259,25 +302,18 @@ class FeatureBuilder:
 
                     g = pd.DataFrame({"x": tr_x, "y": tr_y})
 
-                    # 统计每个类别下每个类标签的均值（one-vs-rest 的概率）
-                    # 即：对于每个类 c，mean( 1[y==c] ) by x
-                    # 然后做平滑
-                    count_by_x = g.groupby("x")["y"].count().rename("count")  # 共同的计数
-                    # 先构造一个 DataFrame: index=x 类别；列=类标签；值=均值
+                    count_by_x = g.groupby("x")["y"].count().rename("count")
                     prob_df = []
                     for c in cls_list:
                         bin_mean = (g.assign(ind=(g["y"] == c).astype(int))
-                                     .groupby("x")["ind"].mean().rename(c))
+                                    .groupby("x")["ind"].mean().rename(c))
                         prob_df.append(bin_mean)
-                    prob_df = pd.concat(prob_df, axis=1)  # 有些列可能缺失，后续用 freq 填
-                    # 合并计数
+                    prob_df = pd.concat(prob_df, axis=1)
                     prob_df = prob_df.join(count_by_x, how="left")
 
-                    # min_samples 过滤
                     if min_samples > 1:
                         prob_df = prob_df.loc[prob_df["count"] >= min_samples]
 
-                    # 平滑： (mean * count + global * alpha) / (count + alpha)，对每个类列分别处理
                     for c in cls_list:
                         gm = float(global_mean[c])
                         col_mean = prob_df[c].fillna(gm)
@@ -344,32 +380,31 @@ class FeatureBuilder:
                     for c in cls_list:
                         new_col = f"{col}{suffix}__class_{_slug(c)}"
                         df[new_col] = float(gdict.get(c, np.nan))
-                        if new_col not in self.created_: self.created_.append(new_col)
+                        if new_col not in self.created_:
+                            self.created_.append(new_col)
                     continue
 
                 x = df[col]
-                # 为每个类构造列
                 for c in cls_list:
                     gm = float(gdict.get(c, np.nan))
-                    # 兼容 JSON 列名强转成字符串导致的取列 KeyError
                     try:
                         series_map = mapping_df[c]
                     except KeyError:
                         if str(c) in mapping_df.columns:
                             series_map = mapping_df[str(c)]
                         else:
-                            # 兜底：该类对应的列完全缺失（极少见），直接用全局均值填充
                             new_col = f"{col}{suffix}__class_{_slug(c)}"
                             df[new_col] = float(gm)
-                            if new_col not in self.created_: self.created_.append(new_col)
+                            if new_col not in self.created_:
+                                self.created_.append(new_col)
                             continue
 
                     new_col = f"{col}{suffix}__class_{_slug(c)}"
                     df[new_col] = x.map(series_map).astype("float64").fillna(gm)
-                    if new_col not in self.created_: self.created_.append(new_col)
+                    if new_col not in self.created_:
+                        self.created_.append(new_col)
 
             else:
-                # 回归/二分类（单列）
                 mapping_sr: pd.Series = pack["mapping"]
                 g = float(pack.get("global", np.nan))
                 new_col = f"{col}{suffix}"
@@ -377,6 +412,148 @@ class FeatureBuilder:
                     df[new_col] = g
                 else:
                     df[new_col] = df[col].map(mapping_sr).astype("float64").fillna(g)
-                if new_col not in self.created_: self.created_.append(new_col)
+                if new_col not in self.created_:
+                    self.created_.append(new_col)
 
         return df
+
+    # ---------------- 文本 TF-IDF：实现 ----------------
+    def _fit_transform_text_tfidf(self, df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
+        """
+        拟合 + 产出 TF-IDF 特征（逐列独立建模，便于落盘复现）
+        """
+        from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
+
+        cols = [c for c in cfg.get("cols", []) if c in df.columns]
+        if not cols:
+            return df
+
+        # 统一参数
+        ng = tuple(cfg.get("ngram_range", [1, 1]))
+        max_feat = int(cfg.get("max_features", 200))
+        analyzer = cfg.get("analyzer", "word")
+        lowercase = bool(cfg.get("lowercase", True))
+        min_df = cfg.get("min_df", 1)
+        max_df = cfg.get("max_df", 1.0)
+        stop_words = cfg.get("stop_words", None)
+        norm = cfg.get("norm", "l2")
+        sublinear_tf = bool(cfg.get("sublinear_tf", False))
+        prefix_opt = cfg.get("prefix", None)
+
+        out = df.copy()
+
+        for col in cols:
+            text = out[col].fillna("").astype(str).values
+
+            # 先用 CountVectorizer 拟合词袋
+            cv = CountVectorizer(
+                ngram_range=ng,
+                max_features=max_feat,
+                analyzer=analyzer,
+                lowercase=lowercase,
+                min_df=min_df,
+                max_df=max_df,
+                stop_words=stop_words
+            )
+            X_counts = cv.fit_transform(text)
+
+            # 再用 TfidfTransformer 拟合 IDF
+            tfidf = TfidfTransformer(norm=norm, use_idf=True, smooth_idf=True, sublinear_tf=sublinear_tf)
+            X_tfidf = tfidf.fit_transform(X_counts)
+
+            # 列名
+            feat_names = [f"{prefix_opt or (col + '__tfidf')}__{t}".replace(" ", "_") for t in cv.get_feature_names_out()]
+
+            # 低维时直接转 dense；太大则用 pandas 稀疏
+            if X_tfidf.shape[1] <= 2000:
+                dense = X_tfidf.toarray()
+                tfidf_df = pd.DataFrame(dense, columns=feat_names, index=out.index)
+            else:
+                tfidf_df = pd.DataFrame.sparse.from_spmatrix(X_tfidf, index=out.index, columns=feat_names)
+
+            out = pd.concat([out, tfidf_df], axis=1)
+            # 记录新列
+            self.created_.extend([c for c in tfidf_df.columns if c not in self.created_])
+
+            # —— 将可复现的状态落入 state（纯 JSON 友好）
+            self.state_["tfidf"][col] = {
+                "params": {
+                    "ngram_range": list(ng),
+                    "analyzer": analyzer,
+                    "lowercase": lowercase,
+                    "min_df": min_df,
+                    "max_df": max_df,
+                    "stop_words": stop_words,
+                    "norm": norm,
+                    "sublinear_tf": sublinear_tf,
+                    "max_features": max_feat,
+                    "prefix": prefix_opt,
+                },
+                "vocabulary": cv.vocabulary_,              # {token: index}
+                "idf": tfidf.idf_.tolist(),                # [idf_i ...] 与 vocabulary 索引对齐
+                "feature_tokens": cv.get_feature_names_out().tolist(),
+            }
+
+            self.log(f"TF-IDF: col='{col}'，tokens={len(feat_names)}")
+
+        return out
+
+    def _transform_text_tfidf(self, df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
+        """
+        仅 transform：用落盘的 vocab + idf 复现 TF-IDF。
+        若 cfg 未提供 cols，则使用 state["tfidf"].keys()。
+        """
+        from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
+
+        # 优先用 cfg.cols；否则用 state 中的列
+        cfg_cols = [c for c in cfg.get("cols", []) if c in df.columns] if isinstance(cfg, dict) else []
+        state_cols = list(self.state_.get("tfidf", {}).keys())
+        cols = cfg_cols or state_cols
+        if not cols:
+            return df
+
+        out = df.copy()
+
+        for col in cols:
+            state = self.state_.get("tfidf", {}).get(col)
+            if not state:
+                # 没有拟合过，跳过
+                continue
+
+            p = state["params"]
+            vocab = state["vocabulary"]
+            idf = np.array(state["idf"], dtype="float64")
+            tokens = state.get("feature_tokens", [])
+
+            # 用固定词表的 CountVectorizer
+            cv = CountVectorizer(
+                ngram_range=tuple(p.get("ngram_range", [1, 1])),
+                analyzer=p.get("analyzer", "word"),
+                lowercase=bool(p.get("lowercase", True)),
+                min_df=1, max_df=1.0,
+                stop_words=p.get("stop_words", None),
+                vocabulary=vocab
+            )
+            X_counts = cv.transform(out[col].fillna("").astype(str).values)
+
+            # 复原 IDF
+            tfidf = TfidfTransformer(
+                norm=p.get("norm", "l2"),
+                use_idf=True, smooth_idf=True,
+                sublinear_tf=bool(p.get("sublinear_tf", False))
+            )
+            tfidf.idf_ = idf
+
+            X_tfidf = tfidf.transform(X_counts)
+            feat_names = [f"{p.get('prefix') or (col + '__tfidf')}__{t}".replace(" ", "_") for t in tokens]
+
+            if X_tfidf.shape[1] <= 2000:
+                dense = X_tfidf.toarray()
+                tfidf_df = pd.DataFrame(dense, columns=feat_names, index=out.index)
+            else:
+                tfidf_df = pd.DataFrame.sparse.from_spmatrix(X_tfidf, index=out.index, columns=feat_names)
+
+            out = pd.concat([out, tfidf_df], axis=1)
+            self.created_.extend([c for c in tfidf_df.columns if c not in self.created_])
+
+        return out
