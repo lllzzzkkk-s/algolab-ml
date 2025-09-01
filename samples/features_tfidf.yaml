@@ -1,0 +1,13 @@
+# 文本 TF-IDF 快速通道（以 comment 列为例）
+text_tfidf:
+  cols: [comment]
+  ngram_range: [1, 2]
+  max_features: 80
+  analyzer: word         # 可选: "word"|"char"
+  lowercase: true
+  min_df: 2              # 频次过滤（文档内出现少于 2 次的 ngram 会被忽略）
+  max_df: 0.95           # 高频过滤
+  stop_words: english    # 或 null
+  norm: l2
+  sublinear_tf: false
+  # prefix: comment_tfidf  # 不填默认列名前缀 "<col>__tfidf"

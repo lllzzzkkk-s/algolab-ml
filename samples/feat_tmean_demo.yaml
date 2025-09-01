@@ -1,0 +1,8 @@
+# examples/feat/feat_tmean_demo.yaml
+target_mean:
+  cols: ["city", "brand"]
+  alpha: 10
+  min_samples: 2
+  n_splits: 5
+  random_state: 42
+  suffix: "__tmean"
