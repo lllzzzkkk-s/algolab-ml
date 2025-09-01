@@ -1,56 +1,35 @@
 # algolab_ml/models/train.py
 from __future__ import annotations
 from typing import Dict, Tuple, Optional
-import inspect
 import numpy as np
 import pandas as pd
 
 from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
 from sklearn.metrics import (
     accuracy_score, f1_score, roc_auc_score, classification_report,
     mean_squared_error, r2_score,
 )
+from sklearn.utils.class_weight import compute_class_weight
 
 from .model_zoo import get_model
+from ..features.transform import build_tabular_preprocess
 
-# —— 针对一些完美分数的提醒
-def _maybe_add_perfect_score_warning(report: dict):
-    """当分类任务的分数“接近 1.0”时，统一加一个温和的提示。"""
-    if report.get("task") != "classification":
-        return
-    keys = ("accuracy", "f1_macro", "roc_auc", "best_score")
-    hits = []
-    for k in keys:
-        v = report.get(k)
-        try:
-            if v is not None and float(v) >= 0.9999:  # 宽松阈值，避免浮点误差
-                hits.append(f"{k}={v}")
-        except Exception:
-            pass
-    if hits:
-        report["warning_perfect_score"] = (
-            "训练/验证得分接近 1.0，请留意是否过拟合或数据泄漏（也可能是数据可分性极强的演示集）。"
-            f" 命中指标：{', '.join(hits)}"
-        )
+from pathlib import Path
+import inspect
 
 # —— 简单任务自动识别
 def _infer_task(y: pd.Series) -> str:
-    # 连续数值：回归；少类别/离散：分类；float 近似整数 + 少类别 → 分类
     nunq = y.nunique(dropna=True)
     if pd.api.types.is_numeric_dtype(y):
         if pd.api.types.is_float_dtype(y):
-            # float 但几乎都是整数且类别数少
             as_int = (y.dropna().round() == y.dropna()).mean()
-            if as_int > 0.98 and nunq <= max(20, int(len(y) * 0.05)):
+            if as_int > 0.98 and nunq <= max(20, int(len(y)*0.05)):
                 return "classification"
-        # 数值但类别很少
-        if nunq <= max(20, int(len(y) * 0.01)):
+        if nunq <= max(20, int(len(y)*0.01)):
             return "classification"
         return "regression"
     else:
         return "classification"
-
 
 # —— 默认搜索空间（可选）
 _DEFAULT_PARAM_GRID = {
@@ -75,38 +54,81 @@ _DEFAULT_PARAM_GRID = {
     },
 }
 
-
 def build_pipeline(pre, model):
+    # 注意：最终导出仍然用 sklearn.Pipeline 包裹（哪怕我们在内部用矩阵拟合）
+    from sklearn.pipeline import Pipeline
     return Pipeline([("preprocess", pre), ("model", model)])
 
 
-def _build_preprocessor(df_features: pd.DataFrame, target: str, enable: bool):
+def _build_preprocessor(df_with_target: pd.DataFrame, target: str, enable: bool):
     """
-    兼容不同版本的 build_tabular_preprocess 签名：
-    - (df, target=..., enable=...)
-    - (df, target_col=..., enable=...)
-    - (df, enable=...) / (df)
-    仅基于特征列（X）构建，避免目标泄漏。
+    兼容不同版本的 build_tabular_preprocess 签名，并且
+    ——关键修复：用不含 target 列的 X 来构建预处理器，避免在 CV/Pipeline 中引用 'label'。
     """
-    from ..features.transform import build_tabular_preprocess  # 延迟导入以避免循环
+    from ..features.transform import build_tabular_preprocess  # 延迟导入避免循环
+
+    # 🚑 关键：剔除 target 列后再交给构建函数
+    dfX = df_with_target.drop(columns=[target], errors="ignore")
+
     try:
         sig = inspect.signature(build_tabular_preprocess)
         params = sig.parameters
         if "target" in params:
-            return build_tabular_preprocess(df_features, target=target, enable=enable)
+            # 传 target 仅用于一些函数内部需要，但真正用于列推断的是 dfX（无 target）
+            return build_tabular_preprocess(dfX, target=target, enable=enable)
         if "target_col" in params:
-            return build_tabular_preprocess(df_features, target_col=target, enable=enable)
-        # 只有 (df, enable=...) 或 (df)
+            return build_tabular_preprocess(dfX, target_col=target, enable=enable)
         try:
-            return build_tabular_preprocess(df_features, enable=enable)
+            return build_tabular_preprocess(dfX, enable=enable)
         except TypeError:
-            return build_tabular_preprocess(df_features)
+            return build_tabular_preprocess(dfX)
     except Exception:
-        # 兜底：按常见写法再尝试一次
         try:
-            return build_tabular_preprocess(df_features, target_col=target, enable=enable)
+            return build_tabular_preprocess(dfX, target_col=target, enable=enable)
         except TypeError:
-            return build_tabular_preprocess(df_features)
+            return build_tabular_preprocess(dfX)
+
+
+def _maybe_set_class_weight_param(model, class_weight: str):
+    """
+    若底层估计器支持 class_weight，则直接设置；否则忽略。
+    """
+    if not class_weight or class_weight == "none":
+        return
+    try:
+        params = model.get_params(deep=True)
+        if "class_weight" in params:
+            model.set_params(class_weight=class_weight)
+    except Exception:
+        pass
+
+
+def _compute_sample_weights(y: pd.Series,
+                            sample_weight_col_values: Optional[pd.Series],
+                            class_weight: str) -> Optional[np.ndarray]:
+    """
+    合成最终 sample_weight:
+    - 若 class_weight = balanced / balanced_subsample：按频次计算每类权重（多分类也支持）
+    - 与 sample_weight_col（若提供）相乘
+    """
+    w = None
+    if class_weight and class_weight != "none":
+        classes = np.unique(y)
+        try:
+            cw = compute_class_weight(class_weight="balanced", classes=classes, y=y)
+            cw_map = {cls: weight for cls, weight in zip(classes, cw)}
+            w = y.map(cw_map).astype("float64").values
+        except Exception:
+            w = None
+
+    if sample_weight_col_values is not None:
+        sw = pd.to_numeric(sample_weight_col_values, errors="coerce").fillna(0.0).values
+        if w is None:
+            w = sw
+        else:
+            w = w * sw
+
+    return w
 
 
 def fit_tabular(
@@ -127,16 +149,13 @@ def fit_tabular(
     val_size: float = 0.15,
     es_rounds: int = 50,
     eval_metric: Optional[str] = None,
-) -> Tuple[Pipeline, dict]:
-    # 目标列检查（给出更友好的报错）
-    if target not in df.columns:
-        cols = list(df.columns)
-        guess = [c for c in cols if c.lower() == target.lower()] or [c for c in cols if c in ("target", "label")]
-        raise KeyError(
-            f"目标列 '{target}' 不在数据列中。当前数据列示例：{cols[:12]}{'...' if len(cols)>12 else ''}；"
-            f"检测到可能的候选目标列：{guess or '[]'}。"
-        )
+    # 第6步新增
+    sample_weight_col: Optional[str] = None,
+    class_weight: str = "none",            # none|balanced|balanced_subsample
+    smote: bool = False,
+) -> Tuple[object, dict]:
 
+    import warnings
     model_params = model_params or {}
     y = df[target]
     X = df.drop(columns=[target])
@@ -144,31 +163,55 @@ def fit_tabular(
     task = task_override or _infer_task(y)
     report: Dict = {"task": task}
 
+    # 合成样本权重（先不考虑 SMOTE；SMOTE 时另行处理）
+    sample_weight_series = None
+    if sample_weight_col and sample_weight_col in df.columns:
+        sample_weight_series = df[sample_weight_col]
+        report["sample_weight_col"] = sample_weight_col
+
     # —— 划分训练/测试
     Xtr, Xte, ytr, yte = train_test_split(
         X, y, test_size=test_size, random_state=random_state, stratify=None if task == "regression" else y
     )
 
-    # —— 预处理（仅基于特征列，避免目标泄漏）
-    pre = _build_preprocessor(Xtr, target=target, enable=preprocess)
+    # 训练阶段先拟合预处理器
+    pre = _build_preprocessor(pd.concat([Xtr, ytr], axis=1), target=target, enable=preprocess)
 
-    # —— 构建模型
+    # 构建模型并尽量设置 class_weight（若模型支持）
     model = get_model(model_name, task, **model_params)
+    _maybe_set_class_weight_param(model, class_weight)
 
-    # ============ CV 搜索（不与早停混用） ============
+    # 计算训练集样本权重（在后续分支里切子集/重采样）
+    base_weight = _compute_sample_weights(
+        ytr,
+        sample_weight_series.loc[ytr.index] if sample_weight_series is not None else None,
+        class_weight=class_weight,
+    )
+    if base_weight is not None:
+        report["weights_stats"] = {
+            "n_nonnull": int(np.isfinite(base_weight).sum()),
+            "min": float(np.nanmin(base_weight)),
+            "max": float(np.nanmax(base_weight)),
+            "mean": float(np.nanmean(base_weight)),
+            "sum": float(np.nansum(base_weight)),
+        }
+
+    # ============ CV 搜索 ============
     if isinstance(cv, int) and cv >= 2:
         from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
+        from sklearn.pipeline import Pipeline
+        pipe = Pipeline([("preprocess", pre), ("model", model)])
 
-        pipe = build_pipeline(pre, model)
+        # SMOTE 与 CV：当前版本跳过（避免权重与样本数不一致的复杂性）
+        if smote:
+            warnings.warn("已启用 CV：当前版本在 CV 中不应用 SMOTE（将继续无 SMOTE 进行搜索）。")
 
+        # 搜索空间
         if param_grid and isinstance(param_grid, str) and param_grid.strip().startswith("@"):
             import json
-            from pathlib import Path
-
             pg = json.loads(Path(param_grid[1:]).read_text(encoding="utf-8"))
         elif param_grid and isinstance(param_grid, str):
             import json
-
             pg = json.loads(param_grid)
         else:
             pg = _DEFAULT_PARAM_GRID.get(model_name, {})
@@ -178,21 +221,21 @@ def fit_tabular(
                 pipe, pg, n_iter=n_iter, scoring=scoring, cv=cv, n_jobs=None, refit=True, random_state=random_state
             )
         else:
-            searcher = GridSearchCV(pipe, pg, scoring=scoring, cv=cv, n_jobs=None, refit=True)
+            searcher = GridSearchCV(
+                pipe, pg, scoring=scoring, cv=cv, n_jobs=None, refit=True
+            )
 
-        searcher.fit(Xtr, ytr)
+        fit_kwargs = {}
+        if base_weight is not None:
+            # Pipeline 下需用 step 前缀
+            fit_kwargs["model__sample_weight"] = base_weight
+
+        searcher.fit(Xtr, ytr, **fit_kwargs)
         best_pipe = searcher.best_estimator_
-        # ✅ 把 CV 产物挂到 best_estimator_ 上，供导出阶段 save_cv_results 使用
-        try:
-            setattr(best_pipe, "cv_results_", searcher.cv_results_)
-            setattr(best_pipe, "best_params_", searcher.best_params_)
-            setattr(best_pipe, "best_score_", searcher.best_score_)
-        except Exception:
-            pass
         yhat = best_pipe.predict(Xte)
-        report["_y_pred"] = yhat.tolist()
 
         if task == "classification":
+            # 尝试概率
             yprob = None
             try:
                 yproba = best_pipe.predict_proba(Xte)
@@ -208,69 +251,85 @@ def fit_tabular(
             if yprob is not None and len(np.unique(yte)) == 2:
                 report["roc_auc"] = float(roc_auc_score(yte, yprob))
             report["classification_report"] = classification_report(yte, yhat, output_dict=True)
-            report["_y_true"], report["_y_prob"] = yte.tolist(), (yprob.tolist() if yprob is not None else None)
-            report["_y_pred"] = yhat.tolist()
+            report["_y_true"], report["_y_pred"] = yte.tolist(), yhat.tolist()
+            report["_y_prob"] = (yprob.tolist() if yprob is not None else None)
         else:
             rmse = float(mean_squared_error(yte, yhat, squared=False))
             r2 = float(r2_score(yte, yhat))
             report.update({"rmse": rmse, "r2": r2})
-        _maybe_add_perfect_score_warning(report)
-        return best_pipe, {
-            **report,
-            "cv": True,
-            "best_params": getattr(searcher, "best_params_", None),
-            "best_score": getattr(searcher, "best_score_", None),
-        }
 
-    # ============ 非 CV：支持早停 ============
-    # 早停时，我们需要先对训练集再切出一块验证集，并手动 fit 预处理器（在 X 上）
+        # 将带 cv_results_ 的对象返回，供 save_cv_results 使用
+        return best_pipe, {**report, "cv": True, "best_params": getattr(searcher, "best_params_", None),
+                           "best_score": getattr(searcher, "best_score_", None)}
+
+    # ============ 早停分支（lgbm / xgb / catboost） ============
     if early_stopping and model_name in ("lgbm", "xgb", "catboost"):
+        from sklearn.exceptions import NotFittedError
+
         Xtr2, Xval, ytr2, yval = train_test_split(
             Xtr, ytr, test_size=val_size, random_state=random_state, stratify=None if task == "regression" else ytr
         )
+        # 拟合预处理器
+        Xtr2_t = pre.fit_transform(pd.concat([Xtr2, ytr2], axis=1), ytr2) if preprocess else Xtr2.values
+        Xval_t = pre.transform(pd.concat([Xval, yval], axis=1)) if preprocess else Xval.values
+        Xte_t  = pre.transform(pd.concat([Xte,  yte],  axis=1)) if preprocess else Xte.values
 
-        # 拟合预处理器（仅在 X 上）
-        if preprocess:
-            pre.fit(Xtr2, ytr2)
-            Xtr2_t = pre.transform(Xtr2)
-            Xval_t = pre.transform(Xval)
-            Xte_t = pre.transform(Xte)
-        else:
-            Xtr2_t, Xval_t, Xte_t = Xtr2.values, Xval.values, Xte.values
+        # 训练子集的样本权重
+        w_tr2 = None
+        if base_weight is not None:
+            w_tr2 = base_weight[ytr2.index] if isinstance(base_weight, pd.Series) else base_weight
+            # 注意：上一步 base_weight 已是 ndarray；这里直接根据 ytr2 的位置切不方便
+            # 简化处理：重算一遍更稳妥
+            w_tr2 = _compute_sample_weights(
+                ytr2,
+                sample_weight_series.loc[ytr2.index] if sample_weight_series is not None else None,
+                class_weight=class_weight,
+            )
 
-        # 适配 LightGBM / XGBoost / CatBoost 的早停参数
+        # SMOTE（仅对训练子集）
+        if smote and task == "classification":
+            try:
+                from imblearn.over_sampling import SMOTE
+                sm = SMOTE(random_state=random_state)
+                Xtr2_t, ytr2 = sm.fit_resample(Xtr2_t, ytr2)
+                if w_tr2 is not None:
+                    # 早停路径下无法安全对齐权重与 SMOTE 的合成样本，忽略权重并提示
+                    print("⚠️  已启用 SMOTE（早停分支）：训练样本权重将被忽略。")
+                w_tr2 = None
+            except Exception as e:
+                print(f"⚠️  SMOTE 失败（已跳过）：{e}")
+
+        # 适配早停参数
         fit_kwargs = {}
         if model_name == "lgbm":
             import lightgbm as lgb
-
             fit_kwargs["eval_set"] = [(Xval_t, yval)]
-            if eval_metric:
-                fit_kwargs["eval_metric"] = eval_metric
+            if eval_metric: fit_kwargs["eval_metric"] = eval_metric
             fit_kwargs["callbacks"] = [lgb.early_stopping(es_rounds, verbose=False)]
         elif model_name == "xgb":
             fit_kwargs["eval_set"] = [(Xval_t, yval)]
+            if eval_metric: fit_kwargs["eval_metric"] = eval_metric
+            fit_kwargs["early_stopping_rounds"] = es_rounds
+            if hasattr(model, "get_xgb_params"):
+                if "verbose" not in model.get_xgb_params():
+                    fit_kwargs["verbose"] = False
+        elif model_name == "catboost":
+            # CatBoost: eval_set=(X_val,y_val) & verbose
+            fit_kwargs["eval_set"] = (Xval_t, yval)
             if eval_metric:
                 fit_kwargs["eval_metric"] = eval_metric
-            fit_kwargs["early_stopping_rounds"] = es_rounds
-            fit_kwargs["verbose"] = False
-        elif model_name == "catboost":
-            # CatBoost: eval_metric 在构造器/参数中设置，不作为 fit() kwarg 传入
-            if eval_metric:
-                try:
-                    model.set_params(eval_metric=eval_metric)
-                except Exception:
-                    pass
-            fit_kwargs["eval_set"] = (Xval_t, yval)
-            fit_kwargs["early_stopping_rounds"] = es_rounds
             fit_kwargs["verbose"] = False
 
-        # 直接在“变换后”的矩阵上拟合底层模型
+        # 拟合
         clf = model
-        clf.fit(Xtr2_t, ytr2, **fit_kwargs)
+        try:
+            clf.fit(Xtr2_t, ytr2, sample_weight=w_tr2, **fit_kwargs)
+        except TypeError:
+            # 某些模型不接受 sample_weight
+            clf.fit(Xtr2_t, ytr2, **fit_kwargs)
 
         # 推理
         yhat = clf.predict(Xte_t)
-        report["_y_pred"] = yhat.tolist()
         yprob = None
         if task == "classification":
             try:
@@ -290,28 +349,15 @@ def fit_tabular(
             if yprob is not None and len(np.unique(yte)) == 2:
                 report["roc_auc"] = float(roc_auc_score(yte, yprob))
             report["classification_report"] = classification_report(yte, yhat, output_dict=True)
-            report["_y_true"], report["_y_prob"] = yte.tolist(), (yprob.tolist() if yprob is not None else None)
-            report["_y_pred"] = yhat.tolist()
+            report["_y_true"], report["_y_pred"] = yte.tolist(), yhat.tolist()
+            report["_y_prob"] = (yprob.tolist() if yprob is not None else None)
         else:
             rmse = float(mean_squared_error(yte, yhat, squared=False))
             r2 = float(r2_score(yte, yhat))
             report.update({"rmse": rmse, "r2": r2})
 
-        # 记录早停信息
-        best_iter = None
-        # LightGBM / XGBoost
         if hasattr(clf, "best_iteration_"):
-            best_iter = int(clf.best_iteration_)
-        # CatBoost
-        if best_iter is None and hasattr(clf, "get_best_iteration"):
-            try:
-                best_iter = int(clf.get_best_iteration())
-            except Exception:
-                pass
-        if best_iter is not None:
-            report["best_iteration"] = best_iter
-
-        # 训练过程曲线
+            report["best_iteration"] = int(clf.best_iteration_)
         ev = None
         if hasattr(clf, "evals_result_"):
             ev = clf.evals_result_
@@ -320,33 +366,42 @@ def fit_tabular(
                 ev = clf.evals_result()
             except Exception:
                 ev = None
-        elif hasattr(clf, "get_evals_result"):  # CatBoost
-            try:
-                ev = clf.get_evals_result()
-            except Exception:
-                ev = None
         if ev:
             report["evals_result"] = ev
 
-        # 将“已拟合”的预处理器 + 模型封装回 Pipeline，便于导出/推理
         pipe = build_pipeline(pre, clf)
-
-        # 过拟合/异常提示（可选）
-        if report.get("roc_auc") == 1.0 or report.get("accuracy") == 1.0:
-            report["warning_perfect_score"] = "训练/验证得分为 1.0，请留意是否过拟合或数据泄漏（也可能是数据可分性极强的演示集）。"
-        _maybe_add_perfect_score_warning(report)
         return pipe, report
 
-    # ============ 普通训练（无早停） ============
-    pipe = build_pipeline(pre, model)
-    pipe.fit(Xtr, ytr)
+    # ============ 普通训练（无早停/无 CV） ============
+    # 统一走“预处理→（可选 SMOTE）→ 拟合底模”的路径，确保权重/SMOTE 都稳定可控
+    Xtr_t = pre.fit_transform(pd.concat([Xtr, ytr], axis=1), ytr) if preprocess else Xtr.values
+    Xte_t = pre.transform(pd.concat([Xte, yte], axis=1)) if preprocess else Xte.values
 
-    yhat = pipe.predict(Xte)
-    report["_y_pred"] = yhat.tolist()
+    w_tr = base_weight
+    if smote and task == "classification":
+        try:
+            from imblearn.over_sampling import SMOTE
+            sm = SMOTE(random_state=random_state)
+            Xtr_t, ytr = sm.fit_resample(Xtr_t, ytr)
+            if w_tr is not None:
+                print("⚠️  已启用 SMOTE：训练样本权重将被忽略（长度无法与合成样本对齐）。")
+            w_tr = None
+        except Exception as e:
+            print(f"⚠️  SMOTE 失败（已跳过）：{e}")
+
+    clf = model
+    try:
+        clf.fit(Xtr_t, ytr, sample_weight=w_tr)
+    except TypeError:
+        clf.fit(Xtr_t, ytr)
+
+    # 推理
+    yhat = clf.predict(Xte_t)
+
     if task == "classification":
         yprob = None
         try:
-            proba = pipe.predict_proba(Xte)
+            proba = clf.predict_proba(Xte_t)
             if proba.ndim == 2 and proba.shape[1] >= 2:
                 yprob = proba[:, 1]
             else:
@@ -359,14 +414,12 @@ def fit_tabular(
         if yprob is not None and len(np.unique(yte)) == 2:
             report["roc_auc"] = float(roc_auc_score(yte, yprob))
         report["classification_report"] = classification_report(yte, yhat, output_dict=True)
-        report["_y_true"], report["_y_prob"] = yte.tolist(), (yprob.tolist() if yprob is not None else None)
-        report["_y_pred"] = yhat.tolist()
+        report["_y_true"], report["_y_pred"] = yte.tolist(), yhat.tolist()
+        report["_y_prob"] = (yprob.tolist() if yprob is not None else None)
     else:
         rmse = float(mean_squared_error(yte, yhat, squared=False))
         r2 = float(r2_score(yte, yhat))
         report.update({"rmse": rmse, "r2": r2})
 
-    if report.get("roc_auc") == 1.0 or report.get("accuracy") == 1.0:
-        report["warning_perfect_score"] = "训练/验证得分为 1.0，请留意是否过拟合或数据泄漏（也可能是数据可分性极强的演示集）。"
-    _maybe_add_perfect_score_warning(report)
+    pipe = build_pipeline(pre, clf)
     return pipe, report

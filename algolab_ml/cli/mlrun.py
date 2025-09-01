@@ -1,22 +1,20 @@
-# algolab_ml/cli/mlrun.py
 #!/usr/bin/env python
+# algolab_ml/cli/mlrun.py
 from __future__ import annotations
 import argparse, json, sys, subprocess
 from pathlib import Path
 from datetime import datetime
 from copy import deepcopy
-
 import pandas as pd
 
 # --- JSON 序列化兜底：numpy/pandas → 纯 Python ---
 def _json_default(o):
     import numpy as np
-    # NumPy: 标量 & 数组
+    import pandas as pd
     if isinstance(o, np.generic):
         return o.item()
     if isinstance(o, np.ndarray):
         return o.tolist()
-    # pandas
     if isinstance(o, pd.Timestamp):
         return o.isoformat()
     if hasattr(pd, "NA") and o is pd.NA:
@@ -37,7 +35,7 @@ try:
     from algolab_ml.utils.artifacts import (
         dump_json, dump_joblib, versions_summary, git_commit_sha, make_run_dir
     )
-except Exception:  # 兜底
+except Exception:
     import joblib, platform, importlib
     def dump_json(p: Path, obj):
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -85,39 +83,18 @@ try:
         plot_feature_importance,
         save_cv_results,
         plot_learning_curve,
-        plot_confusion_matrix,   # ← 新增
+        plot_confusion_matrix,  # 混淆矩阵
     )
 except Exception:
     def plot_roc_pr_curves(*args, **kwargs): pass
     def plot_feature_importance(*args, **kwargs): pass
     def save_cv_results(*args, **kwargs): pass
     def plot_learning_curve(*args, **kwargs): pass
-    # 兜底的混淆矩阵实现（不依赖包内工具）
-    def plot_confusion_matrix(y_true, y_pred, out_dir, labels=None):
-        from pathlib import Path
-        import numpy as np
-        import matplotlib.pyplot as plt
-        from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
-        out_dir = Path(out_dir)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        y_true = np.asarray(y_true)
-        y_pred = np.asarray(y_pred)
-        if labels is None:
-            labels = np.unique(np.concatenate([y_true, y_pred]))
-        cm = confusion_matrix(y_true, y_pred, labels=labels)
-        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
-        fig, ax = plt.subplots(figsize=(4, 4))
-        disp.plot(ax=ax, values_format="d", colorbar=False)
-        ax.set_title("Confusion Matrix")
-        fig.tight_layout()
-        fig.savefig(out_dir / "confusion_matrix.png", dpi=160)
-        plt.close(fig)
+    def plot_confusion_matrix(*args, **kwargs): pass
 
-
-# ----------------- 日志工具 -----------------
+# ----------------- 日志 -----------------
 def _sec(title: str): print(f"\n------- {title} -------")
 def _print_df_shape(df: pd.DataFrame, note: str): print(f"{note}：{df.shape[0]} 行 × {df.shape[1]} 列")
-
 
 def _parse_params(s: str | None) -> dict:
     if not s: return {}
@@ -146,7 +123,6 @@ def _parse_params(s: str | None) -> dict:
         out[k] = v
     return out
 
-
 def _print_list_models(fmt: str, task: str):
     data = {
         "classification": {
@@ -169,7 +145,6 @@ def _print_list_models(fmt: str, task: str):
             for k, v in sorted(data[sc]["aliases"].items()):
                 print(f"    {k} -> {v}")
 
-
 def _print_params(name: str):
     out = {}
     for task in ("classification","regression"):
@@ -185,14 +160,12 @@ def _print_params(name: str):
         raise SystemExit(f"Unknown model alias '{name}'. Available: {json.dumps(avail, ensure_ascii=False)}")
     print(json.dumps(out, ensure_ascii=False, indent=2))
 
-
-# ----------------- 带日志的清洗执行 -----------------
+# ----------------- 带日志清洗 -----------------
 def _apply_cleaning_with_log(df: pd.DataFrame, cfg: dict, target: str | None = None) -> pd.DataFrame:
     cur = df.copy()
     _sec("开始数据清洗（配置式）")
     _print_df_shape(cur, "原始数据维度")
 
-    # 1) enforce_schema
     es = cfg.get("enforce_schema")
     if es:
         _sec("Schema 规范化")
@@ -205,7 +178,6 @@ def _apply_cleaning_with_log(df: pd.DataFrame, cfg: dict, target: str | None = N
         cur = enforce_schema(cur, dtypes=dtypes, rename=rename, required=required)
         _print_df_shape(cur, "规范化后维度")
 
-    # 2) basic_clean
     bc = cfg.get("basic_clean")
     if bc:
         drop_cols = bc.get("drop_cols") if isinstance(bc, dict) else None
@@ -222,7 +194,6 @@ def _apply_cleaning_with_log(df: pd.DataFrame, cfg: dict, target: str | None = N
         cur = cur2
         _print_df_shape(cur, "basic_clean 后维度")
 
-    # 3) fill_na
     if cfg.get("fill_na"):
         na = cfg["fill_na"]
         num = na.get("num","median")
@@ -235,11 +206,10 @@ def _apply_cleaning_with_log(df: pd.DataFrame, cfg: dict, target: str | None = N
         n_na_num_after = int(cur2[num_cols].isna().sum().sum()) if len(num_cols)>0 else 0
         n_na_cat_after = int(cur2[cat_cols].isna().sum().sum()) if len(cat_cols)>0 else 0
         _sec("缺失值填充")
-        print(f"数值列填充策略：{num}，缺失 {n_na_num_before} -> {n_na_num_after}")
+        print(f"数值列填充策略：{num}，缺失 {n_na_num_before} -> {n_na_cat_after if False else n_na_num_after}")
         print(f"类别列填充策略：{cat}，缺失 {n_na_cat_before} -> {n_na_cat_after}")
         cur = cur2
 
-    # 4) drop_constant
     if cfg.get("drop_constant"):
         th = cfg["drop_constant"].get("threshold_unique", 1)
         const_cols = [c for c in cur.columns if cur[c].nunique(dropna=True) <= th]
@@ -250,7 +220,6 @@ def _apply_cleaning_with_log(df: pd.DataFrame, cfg: dict, target: str | None = N
         _sec("删除常量列")
         print(f"阈值：唯一值 ≤ {th}，删除列：{const_cols}")
 
-    # 5) clip_outliers
     if cfg.get("clip_outliers"):
         co = cfg["clip_outliers"]
         method = co.get("method","iqr")
@@ -275,7 +244,6 @@ def _apply_cleaning_with_log(df: pd.DataFrame, cfg: dict, target: str | None = N
                 top = sorted(changed.items(), key=lambda x: x[1], reverse=True)[:8]
                 print(f"变化最多的列（前 8）：{top}")
 
-    # 6) bucket_rare
     if cfg.get("bucket_rare"):
         br = cfg["bucket_rare"]
         cols = br.get("cols", [])
@@ -292,7 +260,6 @@ def _apply_cleaning_with_log(df: pd.DataFrame, cfg: dict, target: str | None = N
         if counts:
             print(f"各列低频类别个数：{counts}")
 
-    # 7) parse_dates
     if cfg.get("parse_dates"):
         mapping = cfg["parse_dates"]
         cur = parse_dates(cur, mapping)
@@ -309,61 +276,7 @@ def _apply_cleaning_with_log(df: pd.DataFrame, cfg: dict, target: str | None = N
     _print_df_shape(cur, "最终数据维度")
     return cur
 
-def _export_confusion_matrix(y_true, y_pred, out_dir):
-    """保存混淆矩阵（计数 & 行归一化）到 out_dir。
-    支持多分类。不会依赖包内 utils，纯 sklearn + matplotlib。
-    """
-    from pathlib import Path
-    import numpy as np
-    import matplotlib
-    matplotlib.use("Agg")  # 纯文件输出，避免 GUI 依赖
-    import matplotlib.pyplot as plt
-    from sklearn.metrics import confusion_matrix
-    import itertools
-
-    y_true = np.asarray(y_true)
-    y_pred = np.asarray(y_pred)
-    labels = np.unique(np.concatenate([y_true, y_pred], axis=0))
-    cm = confusion_matrix(y_true, y_pred, labels=labels)
-
-    def _plot_and_save(matrix, labels, title, filename, fmt="d", norm=False):
-        fig, ax = plt.subplots(figsize=(6, 5), dpi=150)
-        im = ax.imshow(matrix, interpolation="nearest", cmap="Blues")
-        ax.figure.colorbar(im, ax=ax)
-        ax.set(
-            xticks=np.arange(len(labels)),
-            yticks=np.arange(len(labels)),
-            xticklabels=labels,
-            yticklabels=labels,
-            ylabel="True label",
-            xlabel="Predicted label",
-            title=title,
-        )
-        # 网格 + 标注
-        ax.set_ylim(len(labels)-0.5, -0.5)
-        thresh = matrix.max() / 2.0 if matrix.size > 0 else 0.5
-        for i, j in itertools.product(range(matrix.shape[0]), range(matrix.shape[1])):
-            ax.text(
-                j, i, format(matrix[i, j], fmt),
-                ha="center", va="center",
-                color="white" if matrix[i, j] > thresh else "black",
-            )
-        fig.tight_layout()
-        p = Path(out_dir) / filename
-        fig.savefig(p, bbox_inches="tight")
-        plt.close(fig)
-        print(f"✅ 已保存混淆矩阵: {p.resolve()}")
-
-    # 原始计数
-    _plot_and_save(cm, labels, "Confusion Matrix", "confusion_matrix.png", fmt="d", norm=False)
-
-    # 行归一化
-    with np.errstate(divide="ignore", invalid="ignore"):
-        row_sum = cm.sum(axis=1, keepdims=True)
-        row_sum[row_sum == 0] = 1
-        cm_norm = cm.astype("float") / row_sum
-    _plot_and_save(cm_norm, labels, "Confusion Matrix (Normalized)", "confusion_matrix_norm.png", fmt=".2f", norm=True)
-# ----------------- 预测/打分（训练后或纯预测模式通用） -----------------
+# ----------------- 推理/打分 -----------------
 def _run_predict(
     pipe,
     df_pred: pd.DataFrame,
@@ -373,32 +286,22 @@ def _run_predict(
     out_path: str | None = None,
     task_hint: str | None = None,
     expected_input_cols: list[str] | None = None,
-    target_col: str | None = None,   # 训练时的 target 名
+    target_col: str | None = None,
 ):
     import numpy as np
-    from pathlib import Path
 
-    # 1) 分离 id 列
     id_cols = [c for c in (id_cols or []) if c in df_pred.columns]
     id_frame = df_pred[id_cols].copy() if id_cols else None
 
-    # 2) 明确去掉 target 列（防止混入）
     if target_col and target_col in df_pred.columns:
         df_pred = df_pred.drop(columns=[target_col])
 
-    # 3) 训练时的输入列（并确保不含 target）
     if expected_input_cols is None:
-        exp = getattr(pipe, "feature_names_in_", None)
-        if exp is not None:
-            # sklearn 可能返回 ndarray，这里统一成 list
-            try:
-                expected_input_cols = list(exp)
-            except Exception:
-                expected_input_cols = [c for c in df_pred.columns if c not in id_cols]
-        else:
+        expected_input_cols = getattr(pipe, "feature_names_in_", None)
+        if expected_input_cols is None:
             expected_input_cols = [c for c in df_pred.columns if c not in id_cols]
     else:
-        # 若上游传来 ndarray，这里也统一成 list
+        # 可能是 numpy 数组
         try:
             expected_input_cols = list(expected_input_cols)
         except Exception:
@@ -407,60 +310,17 @@ def _run_predict(
     if target_col:
         expected_input_cols = [c for c in expected_input_cols if c != target_col]
 
-    # 4) 对齐列：多退少补，顺序一致
     drop_cols = set(id_cols)
     X_pred = df_pred.drop(columns=list(drop_cols & set(df_pred.columns)), errors="ignore")
     X_pred = X_pred.reindex(columns=list(expected_input_cols), fill_value=np.nan)
 
-    # 5) 安全预测：失败时自动回退（把分类列转字符串并补缺失）
-    def _predict_dataframe(X: pd.DataFrame, as_proba: bool):
-        if as_proba and hasattr(pipe, "predict_proba"):
-            prob = pipe.predict_proba(X)
-            return pd.DataFrame(prob, columns=[f"proba_{i}" for i in range(prob.shape[1])])
-        else:
-            pred = pipe.predict(X)
-            return pd.DataFrame({"pred": pred})
+    if proba and hasattr(pipe, "predict_proba"):
+        prob = pipe.predict_proba(X_pred)
+        out_df = pd.DataFrame(prob, columns=[f"proba_{i}" for i in range(prob.shape[1])])
+    else:
+        pred = pipe.predict(X_pred)
+        out_df = pd.DataFrame({"pred": pred})
 
-    try:
-        out_df = _predict_dataframe(X_pred, proba)
-    except TypeError as e:
-        msg = str(e)
-        # 典型报错：ufunc 'isnan' not supported ...（OneHotEncoder 在未知值检查时触发）
-        if "ufunc 'isnan'" in msg or "isnan" in msg:
-            # 尝试从预处理器里找出“分类列”，仅对这些列做字符串化与缺失填充
-            cat_cols = []
-            try:
-                pre = pipe.named_steps.get("preprocess", None)
-            except Exception:
-                pre = None
-            if pre is not None and hasattr(pre, "transformers_"):
-                for name, trans, cols in pre.transformers_:
-                    # 经验规则：名字里包含 'cat'，或子管道里出现 OneHotEncoder
-                    is_cat = (isinstance(name, str) and "cat" in name.lower()) or ("OneHotEncoder" in str(trans))
-                    if is_cat:
-                        if isinstance(cols, (list, tuple, np.ndarray)):
-                            cat_cols.extend(list(cols))
-            # 仅保留当前存在的列
-            cat_cols = [c for c in cat_cols if c in X_pred.columns]
-
-            # 构造回退副本
-            X_fallback = X_pred.copy()
-            if cat_cols:
-                for c in cat_cols:
-                    # 先填缺失再转字符串，避免 'nan' 文本化
-                    X_fallback[c] = X_fallback[c].fillna("__NA__").astype(str)
-            else:
-                # 如果没有识别到分类列，保守地对 object 列做处理
-                obj_cols = [c for c in X_fallback.columns if str(X_fallback[c].dtype) == "object"]
-                for c in obj_cols:
-                    X_fallback[c] = X_fallback[c].fillna("__NA__").astype(str)
-
-            # 再试一次
-            out_df = _predict_dataframe(X_fallback, proba)
-        else:
-            raise
-
-    # 6) 拼回 id 列 & 导出
     if id_frame is not None:
         out_df = pd.concat([id_frame.reset_index(drop=True), out_df.reset_index(drop=True)], axis=1)
 
@@ -472,9 +332,8 @@ def _run_predict(
         print("（未提供 --predict-out，以下为预测结果预览）")
         print(out_df.head(10).to_string(index=False))
 
-
 def main():
-    ap = argparse.ArgumentParser(description="Algolab ML Runner（自动/指定任务，CV/早停/可视化，带清洗日志 + 推理）")
+    ap = argparse.ArgumentParser(description="Algolab ML Runner（清洗/特征/训练/早停/CV/权重/不平衡/导出/推理）")
     # 训练相关
     ap.add_argument("--csv", help="训练数据 CSV 路径")
     ap.add_argument("--target", help="目标列名")
@@ -496,7 +355,7 @@ def main():
     ap.add_argument("--early-stopping", action="store_true", help="启用早停（LightGBM/XGBoost/CatBoost 生效）")
     ap.add_argument("--val-size", type=float, default=0.15, help="早停的验证集占训练集比例")
     ap.add_argument("--es-rounds", type=int, default=50, help="没有提升的容忍迭代数")
-    ap.add_argument("--eval-metric", default=None, help="eval_metric（如 auc / logloss / rmse / AUC 等）")
+    ap.add_argument("--eval-metric", default=None, help="eval_metric（如 auc / logloss / rmse 等）")
     # 导出
     ap.add_argument("--export", action="store_true", help="保存模型与报告到 --out-dir（未指定则 runs/时间戳）")
     ap.add_argument("--out-dir", default=None, help="保存目录（默认 runs/YYYYmmdd-HHMMSS）")
@@ -513,6 +372,12 @@ def main():
     ap.add_argument("--format", choices=["json","text"], default="json", help="list 输出格式")
     ap.add_argument("--task-scope", choices=["classification","regression","all"], default="all", help="list 作用域")
     ap.add_argument("--show-params", default=None, help="显示某模型构造函数参数签名后退出")
+    # —— 第2/6步：样本权重 & 类别不平衡
+    ap.add_argument("--sample-weight-col", default=None, help="样本权重列名（可与 --class-weight 相乘）")
+    ap.add_argument("--class-weight", choices=["none","balanced","balanced_subsample"], default="none",
+                    help="类别权重：none|balanced|balanced_subsample")
+    ap.add_argument("--smote", action="store_true", help="启用 SMOTE 过采样（仅训练集；CV 中将忽略）")
+
     args, _ = ap.parse_known_args()
 
     # 发现类命令
@@ -526,7 +391,6 @@ def main():
         if not args.model_path and not args.run_dir:
             raise SystemExit("仅预测模式需要提供 --model-path 或 --run-dir")
 
-        # 解析路径
         run_dir = Path(args.run_dir) if args.run_dir else None
         model_path = Path(args.model_path) if args.model_path else None
         if run_dir and not model_path:
@@ -536,20 +400,21 @@ def main():
         if not model_path or not model_path.exists():
             raise SystemExit(f"找不到模型：{model_path or '(未提供)'}")
 
-        # 读取待预测
         df_pred = pd.read_csv(args.predict_csv)
 
-        # 尝试加载训练时元数据
+        expected_cols = None
         target_col = getattr(args, "target", None)
         if run_dir:
             cols_file = run_dir / "columns.json"
             if cols_file.exists():
                 cols_json = json.loads(cols_file.read_text(encoding="utf-8"))
+                all_cols = cols_json.get("all_columns") or []
                 tgt = cols_json.get("target")
+                if all_cols:
+                    expected_cols = [c for c in all_cols if c != tgt]
                 if tgt:
                     target_col = tgt
 
-        # 清洗/特征工程（transform）
         clean_cfg = None
         feat_cfg = None
         builder = None
@@ -558,7 +423,6 @@ def main():
             fc = run_dir / "features_config.json"
             if cc.exists():
                 clean_cfg = json.loads(cc.read_text(encoding="utf-8"))
-                # 预测阶段：尽量不动列结构 —— 跳过 drop_constant
                 if isinstance(clean_cfg, dict) and "drop_constant" in clean_cfg:
                     print("⚠️  预测阶段为保持列一致，已跳过 drop_constant（删除常量列）")
                     clean_cfg = deepcopy(clean_cfg)
@@ -571,7 +435,6 @@ def main():
                     builder = FeatureBuilder(feat_cfg, log_fn=print)
                     df_pred = builder.transform(df_pred)
 
-        # 加载 pipeline 并预测
         from joblib import load as _load
         pipe = _load(model_path)
         id_cols = [s.strip() for s in args.id_cols.split(",")] if args.id_cols else None
@@ -583,7 +446,7 @@ def main():
             proba=bool(getattr(args, "proba", False)),
             id_cols=id_cols,
             out_path=str(out_path) if out_path else None,
-            expected_input_cols=None,  # 让 _run_predict 自动从 pipe.feature_names_in_ 读取
+            expected_input_cols=expected_cols,
             target_col=target_col,
         )
         return
@@ -592,15 +455,12 @@ def main():
     if not args.csv or not args.target:
         raise SystemExit("训练模式需要 --csv / --target。也可以使用“仅预测模式”。")
 
-    # 读取 CSV
     df = pd.read_csv(args.csv)
     clean_cfg = load_json_or_yaml(args.clean_config)
 
-    # 清洗（带日志）
     if clean_cfg:
         df = _apply_cleaning_with_log(df, clean_cfg, target=args.target)
 
-    # 特征工程
     feat_cfg = load_json_or_yaml(args.feat_config)
     builder = None
     if isinstance(feat_cfg, dict) and feat_cfg:
@@ -613,12 +473,14 @@ def main():
         print("本次新增特征列总数：0")
         print("特征工程新列数：0")
 
-    # 训练
     model_params = _parse_params(getattr(args, "params", None))
     print("\n======= 开始训练 =======")
     pipe, report = tabular_pipeline.run_df(
-        df, target=args.target, model=args.model,
-        test_size=args.test_size, random_state=args.random_state,
+        df,
+        target=args.target,
+        model=args.model,
+        test_size=args.test_size,
+        random_state=args.random_state,
         preprocess=(not args.no_preprocess),
         model_params=model_params,
         task=(None if args.task == "auto" else args.task),
@@ -626,6 +488,10 @@ def main():
         scoring=args.scoring, param_grid=args.param_grid,
         early_stopping=args.early_stopping, val_size=args.val_size,
         es_rounds=args.es_rounds, eval_metric=args.eval_metric,
+        # 新增
+        sample_weight_col=args.sample_weight_col,
+        class_weight=args.class_weight,
+        smote=bool(args.smote),
     )
     print("======= 训练完成，评估报告 =======")
     print(json.dumps(report, ensure_ascii=False, indent=2, default=_json_default))
@@ -635,21 +501,18 @@ def main():
         out_dir = Path(args.out_dir) if args.out_dir else make_run_dir(Path("runs"))
         out_dir.mkdir(parents=True, exist_ok=True)
         dump_joblib(out_dir / "pipeline.joblib", pipe)
-
         report_to_save = {k: v for k, v in report.items() if not str(k).startswith("_")}
         _save_json(out_dir / "metrics.json", report_to_save)
         _save_json(out_dir / "columns.json", {"target": args.target, "all_columns": df.columns.tolist()})
         _save_json(out_dir / "versions.json", versions_summary())
-        if clean_cfg:
-            _save_json(out_dir / "clean_config.json", clean_cfg)
+        if clean_cfg: _save_json(out_dir / "clean_config.json", clean_cfg)
         if builder is not None:
             try:
                 _save_json(out_dir / "features_config.json", builder.to_dict())
             except Exception:
-                if feat_cfg:
-                    _save_json(out_dir / "features_config.json", feat_cfg)
+                if feat_cfg: _save_json(out_dir / "features_config.json", feat_cfg)
 
-        # 曲线与可视化（不重复打印“已保存”文案，避免重复日志）
+        # 曲线与可视化
         try:
             if report.get("task") == "classification" and "roc_auc" in report and "_y_true" in report and "_y_prob" in report:
                 plot_roc_pr_curves(report["_y_true"], report["_y_prob"], out_dir)
@@ -661,119 +524,25 @@ def main():
         except Exception:
             pass
         try:
-            # CV 结果（在做过 Grid/RandomSearch 时有效）
             save_cv_results(pipe, out_dir)
         except Exception:
-            # 静默继续，下面有兜底写盘
             pass
         try:
-            # 学习曲线（早停训练）
             ev = report.get("evals_result")
             if ev:
                 plot_learning_curve(ev, out_dir, metric_hint=args.eval_metric, task=report.get("task"))
         except Exception:
             pass
         try:
-            # 混淆矩阵（分类任务；需要 _y_true 和 _y_pred）
             if report.get("task") == "classification":
                 y_true = report.get("_y_true")
                 y_pred = report.get("_y_pred")
                 if y_true is not None and y_pred is not None:
-                    _export_confusion_matrix(y_true, y_pred, out_dir)
-        except Exception as e:
-            print(f"⚠️ 混淆矩阵生成失败：{e}")
-
-        # ✅ 兜底：若 pipe 挂有 CV 产物，则直接保存到文件
-        try:
-            cvd = getattr(pipe, "cv_results_", None)
-            if cvd:
-                cv_path = out_dir / "cv_results.csv"
-                pd.DataFrame(cvd).to_csv(cv_path, index=False)
-                print(f"✅ 已保存 CV 结果到: {cv_path.resolve()}")
-            best_params = getattr(pipe, "best_params_", None) or report_to_save.get("best_params")
-            best_score  = getattr(pipe, "best_score_",  None) or report_to_save.get("best_score")
-            if best_params is not None or best_score is not None:
-                _save_json(out_dir / "cv_best.json", {"best_params": best_params, "best_score": best_score})
-                print(f"✅ 已保存 CV 最优快照到: {(out_dir / 'cv_best.json').resolve()}")
-        except Exception as e:
-            print(f"⚠️ CV 结果保存失败：{e}")
+                    plot_confusion_matrix(y_true, y_pred, out_dir)
+        except Exception:
+            pass
 
         print(f"📦 训练工件已导出到: {out_dir.resolve()}")
-
-    # ------- 训练后立即对新 CSV 预测 -------
-    pred_csv = getattr(args, "predict_csv", None)
-    pred_out = getattr(args, "predict_out", None)
-    proba    = bool(getattr(args, "proba", False))
-    id_cols_arg = getattr(args, "id_cols", None)
-
-    if pred_csv:
-        p = Path(pred_csv)
-        if not p.exists():
-            print(f"⚠️  预测文件不存在：{pred_csv}，已跳过预测。")
-        else:
-            print("\n------- 训练后立即对新 CSV 预测 -------")
-            import numpy as np
-
-            df_pred_raw = pd.read_csv(p)
-
-            # 1)（可选）执行与训练一致的清洗（尽量保持列一致）
-            if clean_cfg:
-                clean_cfg_pred = deepcopy(clean_cfg)
-                if isinstance(clean_cfg_pred, dict) and "drop_constant" in clean_cfg_pred:
-                    print("⚠️  预测阶段为保持列一致，已跳过 drop_constant（删除常量列）")
-                    clean_cfg_pred.pop("drop_constant", None)
-                df_pred = _apply_cleaning_with_log(df_pred_raw, clean_cfg_pred, target=args.target)
-            else:
-                df_pred = df_pred_raw.copy()
-
-            # 2)（可选）执行与训练一致的特征工程（builder 已在训练阶段 fit 过）
-            if builder is not None:
-                try:
-                    df_pred = builder.transform(df_pred)
-                except Exception as e:
-                    print(f"⚠️ 特征工程在预测阶段 transform 失败：{e}。将直接用原始列进行预测。")
-
-            # 3) 取出 id 列（若用户指定），并从特征中排除
-            id_cols = []
-            if id_cols_arg:
-                id_cols = [c.strip() for c in str(id_cols_arg).split(",") if c.strip() and c.strip() in df_pred.columns]
-            id_frame = df_pred[id_cols].copy() if id_cols else None
-
-            # 4) 以 pipeline 的 feature_names_in_ 为金标准（回退到训练 df 列，排除 target）
-            expected_cols = getattr(pipe, "feature_names_in_", None)
-            if expected_cols is None:
-                expected_cols = [c for c in df.columns if c != args.target]
-            else:
-                # numpy.ndarray -> list，避免后续出现 bool/索引歧义
-                expected_cols = list(expected_cols)
-
-            drop_cols = [args.target] if args.target in df_pred.columns else []
-            drop_cols += [c for c in id_cols if c in df_pred.columns]
-            X_pred = df_pred.drop(columns=drop_cols, errors="ignore").reindex(columns=expected_cols, fill_value=np.nan)
-            if args.target in X_pred.columns:
-                X_pred = X_pred.drop(columns=[args.target], errors="ignore")
-
-            # 5) 预测
-            if proba and hasattr(pipe, "predict_proba"):
-                prob = pipe.predict_proba(X_pred)
-                proba_cols = [f"proba_{i}" for i in range(prob.shape[1])]
-                out_df = pd.DataFrame(prob, columns=proba_cols)
-            else:
-                pred = pipe.predict(X_pred)
-                out_df = pd.DataFrame({"pred": pred})
-
-            # 拼回 id 列并导出
-            if id_frame is not None:
-                out_df = pd.concat([id_frame.reset_index(drop=True), out_df.reset_index(drop=True)], axis=1)
-
-            if pred_out:
-                Path(pred_out).parent.mkdir(parents=True, exist_ok=True)
-                out_df.to_csv(pred_out, index=False)
-                print(f"✅ 预测结果已保存到：{Path(pred_out).resolve()}")
-            else:
-                print("（未提供 --predict-out，以下为预测结果预览）")
-                print(out_df.head(10).to_string(index=False))
-
 
 if __name__ == "__main__":
     main()
